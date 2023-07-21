@@ -197,7 +197,7 @@ class HWConnect(BaseCLIUnit):
             if args.port is None: # Chameleon Autodedect if no port is supplied
                 # loop through all ports and find chameleon
                 for port in serial.tools.list_ports.comports():
-                    if port.manufacturer.startswith("Proxgrind") and port.description.startswith("Chameleon"):
+                    if port.vid == 0x6868:
                         args.port = port.device
                         break
                 if args.port is None: # If no chameleon was found, exit
@@ -629,14 +629,22 @@ class HFMFELoad(DeviceRequiredUnit):
     def args_parser(self) -> ArgumentParserNoExit or None:
         parser = ArgumentParserNoExit()
         parser.add_argument('-f', '--file', type=str, required=True, help="file path")
-        parser.add_argument('-t', '--type', type=str, required=True, help="content type", choices=['bin', 'hex'])
+        parser.add_argument('-t', '--type', type=str, required=False, help="content type", choices=['bin', 'hex'])
         return parser
 
     # hf mf eload -f test.bin -t bin
     # hf mf eload -f test.eml -t hex
     def on_exec(self, args: argparse.Namespace):
         file = args.file
-        content_type = args.type
+        if args.type is None:
+            if file.endswith('.bin'):
+                content_type = 'bin'
+            elif file.endswith('.eml'):
+                content_type = 'hex'
+            else:
+                raise Exception("Unknown file format, Specify content type with -t option")
+        else:
+            content_type = args.type
         buffer = bytearray()
 
         with open(file, mode='rb') as fd:
@@ -935,9 +943,7 @@ class HWSlotOpenAll(DeviceRequiredUnit):
         lf_type = chameleon_cmd.TagSpecificType.TAG_TYPE_EM410X
 
         # set all slot
-        for slot in range(8):
-            # the slot not from 0 offset, so we can inc 1.
-            slot = slot + 1
+        for slot in range(1,9):
             print(f' Slot{slot} setting...')
             # first to set tag type
             self.cmd_positive.set_slot_tag_type(slot, hf_type)
