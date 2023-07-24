@@ -78,7 +78,11 @@ class ChameleonCom:
             finally:
                 if error is not None:
                     raise OpenFailException(error)
-            self.serial_instance.dtr = 1  # must make dtr enable
+            try:
+                self.serial_instance.dtr = 1  # must make dtr enable
+            except Exception as e:
+                # not all serial support dtr, e.g. virtual serial over BLE
+                pass
             self.serial_instance.timeout = 0  # noblock
             # clear variable
             self.send_data_queue.queue.clear()
@@ -225,6 +229,7 @@ class ChameleonCom:
             task = self.send_data_queue.get()
             task_cmd = task['cmd']
             task_timeout = task['timeout']
+            task_close = task['close']
             # register to wait map
             if 'callback' in task and callable(task['callback']):
                 self.wait_response_map[task_cmd] = {
@@ -248,6 +253,9 @@ class ChameleonCom:
                 break
             # update queue status
             self.send_data_queue.task_done()
+            # disconnect if DFU command has been sent
+            if task_close:
+                self.close()
 
     def thread_check_timeout(self):
         """
@@ -287,7 +295,7 @@ class ChameleonCom:
         frame.append(self.lrc_calc(frame))
         return frame
 
-    def send_cmd_auto(self, cmd: int, status: int, data: bytearray = None, callback=None, timeout: int = 3):
+    def send_cmd_auto(self, cmd: int, status: int, data: bytearray = None, callback=None, timeout: int = 3, close: bool = False):
         """
             Send cmd to device
         :param timeout: wait response timeout
@@ -307,6 +315,7 @@ class ChameleonCom:
             'cmd': cmd,
             'frame': data_frame,
             'timeout': timeout,
+            'close': close,
         }
         if callable(callback):
             task['callback'] = callback

@@ -5,6 +5,7 @@ import argparse
 import colorama
 import timeit
 import sys
+import time
 import serial.tools.list_ports
 
 import chameleon_com
@@ -233,6 +234,24 @@ class HWModeGet(DeviceRequiredUnit):
 
     def on_exec(self, args: argparse.Namespace):
         print(f"- Device Mode ( Tag {'Reader' if self.cmd_standard.is_reader_device_mode() else 'Emulator'} )")
+
+
+class HWChipIdGet(DeviceRequiredUnit):
+
+    def args_parser(self) -> ArgumentParserNoExit or None:
+        return None
+
+    def on_exec(self, args: argparse.Namespace):
+        print(f' - Device chip ID: ' + self.cmd_positive.get_device_chip_id())
+
+
+class HWAddressGet(DeviceRequiredUnit):
+
+    def args_parser(self) -> ArgumentParserNoExit or None:
+        return None
+
+    def on_exec(self, args: argparse.Namespace):
+        print(f' - Device address: ' + self.cmd_positive.get_device_address())
 
 
 class HF14AScan(ReaderRequiredUint):
@@ -973,3 +992,5 @@ class HWDFU(DeviceRequiredUnit):
         # 我们判断是否成功进入USB，只需要判断USB是否变成DFU设备的VID和PID即可，
         # 同时我们记得确认设备的信息，一致时才是同一个设备。
         print(" - Enter success @.@~")
+        # let time for comm thread to send dfu cmd and close port
+        time.sleep(0.1)
