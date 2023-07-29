@@ -78,19 +78,14 @@ countKeys* uniqsort(uint64_t* possibleKeys, uint32_t size) {
 	return (our_counts);
 }
 
-uint32_t atoui(const char* str)
-{
-	uint32_t result = 0, i = 0;
-	char* tmp = NULL;
-	for (i = 0; isspace(str[i]) && i < strlen(str); i++)
-		;
-	tmp = str + i;
-	while (*tmp)
-	{
-		result = result * 10 + *tmp - '0';
-		tmp++;
-	}
+uint32_t atoui(const char* str) {
 
+	uint32_t result = 0;
+	for (int i = 0; str[i] != '\0'; ++i) {
+		if (str[i] >= '0' && str[i] <= '9') {
+			result = result * 10 + str[i] - '0';
+		}
+	}
 	return result;
 }
 
@@ -265,7 +260,7 @@ int main(int argc, char* const argv[]) {
 
 	if (keyCount > 0) {
 		for (i = 0; i < keyCount; i++) {
-			printf("Key%d: %llx\r\n", i + 1, keys[i]);
+			printf("Key %d... %" PRIx64 " \r\n", i + 1, keys[i]);
 			fflush(stdout);
 		}
 	}
