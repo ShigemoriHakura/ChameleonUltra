@@ -33,31 +33,46 @@ set -xe
 
 (
   cd objects
+
+  cp ../nrf52_sdk/components/softdevice/${softdevice}/hex/${softdevice}_nrf52_${softdevice_version}_softdevice.hex softdevice.hex
   
   nrfutil nrf5sdk-tools pkg generate \
     --hw-version $hw_version \
     --bootloader  bootloader.hex   --bootloader-version  $bootloader_version  --key-file ../../resource/dfu_key/chameleon.pem \
-    --application application.hex  --application-version $application_version --app-boot-validation NO_VALIDATION \
-    --softdevice  ../nrf52_sdk/components/softdevice/${softdevice}/hex/${softdevice}_nrf52_${softdevice_version}_softdevice.hex --sd-req ${softdevice_id} --sd-id ${softdevice_id} --sd-boot-validation NO_VALIDATION \
-    dfu-full.zip
+    --application application.hex  --application-version $application_version\
+    --softdevice  softdevice.hex \
+    --sd-req ${softdevice_id} --sd-id ${softdevice_id} \
+    ${device_type}-dfu-full.zip
 	
   nrfutil nrf5sdk-tools pkg generate \
     --hw-version $hw_version --key-file ../../resource/dfu_key/chameleon.pem \
-    --application application.hex  --application-version $application_version --app-boot-validation NO_VALIDATION \
+    --application application.hex  --application-version $application_version \
     --sd-req ${softdevice_id} \
-    dfu-app.zip
+    ${device_type}-dfu-app.zip
 
   nrfutil nrf5sdk-tools settings generate \
     --family NRF52840 \
     --application application.hex --application-version $application_version \
+    --softdevice softdevice.hex \
     --bootloader-version $bootloader_version --bl-settings-version 2 \
     settings.hex
+  mergehex \
+    --merge \
+    settings.hex \
+    application.hex \
+    --output application_merged.hex
 
   mergehex \
     --merge \
       bootloader.hex \
-      settings.hex \
-      application.hex \
-      ../nrf52_sdk/components/softdevice/${softdevice}/hex/${softdevice}_nrf52_${softdevice_version}_softdevice.hex \
+      application_merged.hex \
+      softdevice.hex \
     --output fullimage.hex
+
+  tmp_dir=$(mktemp -d -t cu_binaries_XXXXXXXXXX)
+  cp *.hex "$tmp_dir"
+  mv $tmp_dir/application_merged.hex $tmp_dir/application.hex
+  rm $tmp_dir/settings.hex
+  zip -j ${device_type}-binaries.zip $tmp_dir/*.hex
+  rm -rf $tmp_dir
 )

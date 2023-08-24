@@ -37,6 +37,11 @@ DATA_CMD_WIPE_FDS = 1020
 DATA_CMD_GET_ENABLED_SLOTS = 1023
 DATA_CMD_DELETE_SLOT_SENSE_TYPE = 1024
 
+DATA_CMD_GET_BATTERY_INFO = 1025
+
+DATA_CMD_GET_BUTTON_PRESS_CONFIG = 1026
+DATA_CMD_SET_BUTTON_PRESS_CONFIG = 1027
+
 DATA_CMD_SCAN_14A_TAG = 2000
 DATA_CMD_MF1_SUPPORT_DETECT = 2001
 DATA_CMD_MF1_NT_LEVEL_DETECT = 2002
@@ -188,6 +193,75 @@ class MifareClassicWriteMode(enum.IntEnum):
         elif self == MifareClassicWriteMode.SHADOW:
             return "Shadow"
         return "None"
+
+
+@enum.unique
+class ButtonType(enum.IntEnum):
+    # what, you need the doc for button type? maybe chatgpt known... LOL
+    ButtonA = ord('A')
+    ButtonB = ord('B')
+
+    @staticmethod
+    def list():
+        return list(map(int, ButtonType))
+
+    @staticmethod
+    def list_str():
+        return list(map(chr, ButtonType))
+
+    @staticmethod
+    def from_str(val):
+        if ButtonType.ButtonA == ord(val):
+            return ButtonType.ButtonA
+        elif ButtonType.ButtonB == ord(val):
+            return ButtonType.ButtonB
+        return None
+
+    def __str__(self):
+        if self == ButtonType.ButtonA:
+            return "Button A"
+        elif self == ButtonType.ButtonB:
+            return "Button B"
+        return "None"
+
+
+@enum.unique
+class ButtonPressFunction(enum.IntEnum):
+    SettingsButtonDisable = 0
+    SettingsButtonCycleSlot = 1
+    SettingsButtonCycleSlotDec = 2
+    SettingsButtonCloneIcUid = 3
+
+    @staticmethod
+    def list():
+        return list(map(int, ButtonPressFunction))
+
+    def __str__(self):
+        if self == ButtonPressFunction.SettingsButtonDisable:
+            return "No Function"
+        elif self == ButtonPressFunction.SettingsButtonCycleSlot:
+            return "Cycle Slot"
+        elif self == ButtonPressFunction.SettingsButtonCycleSlotDec:
+            return "Cycle Slot Dec"
+        elif self == ButtonPressFunction.SettingsButtonCloneIcUid:
+            return "Quickly Copy Ic Uid"
+        return "None"
+
+    @staticmethod
+    def from_int(val):
+        return ButtonPressFunction(val)
+
+    # get usage for button function
+    def usage(self):
+        if self == ButtonPressFunction.SettingsButtonDisable:
+            return "This button have no function"
+        elif self == ButtonPressFunction.SettingsButtonCycleSlot:
+            return "Card slot number sequence will increase after pressing"
+        elif self == ButtonPressFunction.SettingsButtonCycleSlotDec:
+            return "Card slot number sequence decreases after pressing"
+        elif self == ButtonPressFunction.SettingsButtonCloneIcUid:
+            return "Read the UID card number immediately after pressing, continue searching, and simulate immediately after reading the card"
+        return "Unknown"
 
 
 class ChameleonCMD:
@@ -437,8 +511,6 @@ class ChameleonCMD:
     def delete_slot_sense_type(self, slot_index: SlotNumber, sense_type: TagSenseType):
         """
             Delete a sense type for a specific slot.
-            Another sense type must be enabled for the same slot,
-            otherwise an error will be thrown.
         :param slot_index: Slot index
         :param sense_type: Sense type to disable
         :return:
@@ -487,7 +559,7 @@ class ChameleonCMD:
         if len(id_bytes) != 5:
             raise ValueError("The id bytes length must equal 5")
         return self.device.send_cmd_sync(DATA_CMD_SET_EM410X_EMU_ID, 0x00, id_bytes)
-    
+
     def get_em410x_sim_id(self):
         """
             Get the simulated EM410x card id
@@ -535,7 +607,7 @@ class ChameleonCMD:
         data.append(block_start & 0xFF)
         data.extend(block_data)
         return self.device.send_cmd_sync(DATA_CMD_LOAD_MF1_EMU_BLOCK_DATA, 0x00, data)
-    
+
     def get_mf1_block_data(self, block_start: int, block_count: int):
         """
             Gets data for selected block range
@@ -557,7 +629,7 @@ class ChameleonCMD:
         data.extend(atqa)
         data.extend(uid)
         return self.device.send_cmd_sync(DATA_CMD_SET_MF1_ANTI_COLLISION_RES, 0X00, data)
-    
+
     @expect_response(chameleon_status.Device.STATUS_DEVICE_SUCCESS)
     def set_slot_tag_nick_name(self, slot: SlotNumber, sense_type: TagSenseType, name: bytes):
         """
@@ -572,7 +644,7 @@ class ChameleonCMD:
         data.extend([SlotNumber.to_fw(slot), sense_type])
         data.extend(name)
         return self.device.send_cmd_sync(DATA_CMD_SET_SLOT_TAG_NICK, 0x00, data)
-    
+
     @expect_response(chameleon_status.Device.STATUS_DEVICE_SUCCESS)
     def get_slot_tag_nick_name(self, slot: SlotNumber, sense_type: TagSenseType):
         """
@@ -672,6 +744,30 @@ class ChameleonCMD:
         """
         return self.device.send_cmd_sync(DATA_CMD_WIPE_FDS, 0x00)
 
+    @expect_response(chameleon_status.Device.STATUS_DEVICE_SUCCESS)
+    def battery_informartion(self):
+        """
+        Get battery info
+        """
+        return self.device.send_cmd_sync(DATA_CMD_GET_BATTERY_INFO, 0x00)
+
+    @expect_response(chameleon_status.Device.STATUS_DEVICE_SUCCESS)
+    def get_button_press_fun(self, button: ButtonType):
+        """
+        Get config of button press function
+        """
+        return self.device.send_cmd_sync(DATA_CMD_GET_BUTTON_PRESS_CONFIG, 0x00, bytearray([button]))
+
+    @expect_response(chameleon_status.Device.STATUS_DEVICE_SUCCESS)
+    def set_button_press_fun(self, button: ButtonType, function: ButtonPressFunction):
+        """
+        Set config of button press function
+        """
+        return self.device.send_cmd_sync(
+            DATA_CMD_SET_BUTTON_PRESS_CONFIG,
+            0x00,
+            bytearray([button, function])
+        )
 
 if __name__ == '__main__':
     # connect to chameleon

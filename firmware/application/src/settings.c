@@ -15,31 +15,42 @@ static settings_data_t config;
 
 static uint16_t m_config_crc;
 
-static void update_config_crc(void)
-{
+static void update_config_crc(void) {
     calc_14a_crc_lut((uint8_t *)&config, sizeof(config), (uint8_t *)&m_config_crc);
 }
 
-static bool config_did_change(void)
-{
+static bool config_did_change(void) {
     uint16_t new_calc_crc;
     calc_14a_crc_lut((uint8_t *)&config, sizeof(config), (uint8_t *)&new_calc_crc);
     return new_calc_crc != m_config_crc;
 }
 
-void settings_init_config(void)
-{
+void settings_update_version_for_config(void) {
     config.version = SETTINGS_CURRENT_VERSION;
-    config.animation_config = SettingsAnimationModeFull;
 }
 
-void settings_migrate(void)
-{
+void settings_init_button_press_config(void) {
+    config.button_a_press = SettingsButtonCycleSlot;
+    config.button_b_press = SettingsButtonCycleSlotDec;
+}
+
+void settings_init_config(void) {
+    settings_update_version_for_config();
+    config.animation_config = SettingsAnimationModeFull;
+    settings_init_button_press_config();
+}
+
+void settings_migrate(void) {
     switch (config.version) {
         case 0:
             NRF_LOG_ERROR("Unexpected configuration version detected!");
             settings_init_config();
+
+        case 1:
+            settings_init_button_press_config();
+            settings_update_version_for_config();
             break;
+
         /*
          * When needed migrations can be implemented like this:
          *
@@ -53,6 +64,8 @@ void settings_migrate(void)
          *
          * Note that the `break` statement should only be used on the last migration step, all the previous steps must fall
          * through to the next case.
+         *
+         * Note that the `settings_update_version_for_config` function should only be used on the last migration step.
          */
         default:
             NRF_LOG_ERROR("Unsupported configuration migration attempted! (%d -> %d)", config.version, SETTINGS_CURRENT_VERSION);
@@ -60,8 +73,7 @@ void settings_migrate(void)
     }
 }
 
-void settings_load_config(void)
-{
+void settings_load_config(void) {
     bool ret = fds_read_sync(FDS_SETTINGS_FILE_ID, FDS_SETTINGS_RECORD_KEY, sizeof(config), (uint8_t *)&config);
     if (ret) {
         NRF_LOG_INFO("Load config done.");
@@ -84,8 +96,7 @@ void settings_load_config(void)
     }
 }
 
-uint8_t settings_save_config(void)
-{
+uint8_t settings_save_config(void) {
     // We are saving the configuration, we need to calculate the crc code of the current configuration to judge whether the following data is updated
     if (config_did_change()) {    // Before saving, make sure that the configuration has changed
         NRF_LOG_INFO("Save config start.");
@@ -93,9 +104,7 @@ uint8_t settings_save_config(void)
         if (ret) {
             NRF_LOG_INFO("Save config success.");
             update_config_crc();
-        }
-        else
-        {
+        } else {
             NRF_LOG_ERROR("Save config error.");
             return STATUS_FLASH_WRITE_FAIL;
         }
@@ -106,12 +115,79 @@ uint8_t settings_save_config(void)
     return STATUS_DEVICE_SUCCESS;
 }
 
-uint8_t settings_get_animation_config()
-{
+uint8_t settings_get_animation_config() {
     return config.animation_config;
 }
 
-void settings_set_animation_config(uint8_t value)
-{
+void settings_set_animation_config(uint8_t value) {
     config.animation_config = value;
+}
+
+/**
+ * @brief check the button type is valid?
+ *
+ * @param type Button type, 'a' or 'b' or 'A' or 'B'
+ * @return true Button type valid.
+ * @return false Button type Invalid.
+ */
+bool is_settings_button_type_valid(char type) {
+    switch (type) {
+        case 'a':
+        case 'b':
+        case 'A':
+        case 'B':
+            return true;
+        default:
+            return false;
+    }
+}
+
+/**
+ * @brief Get the button press config
+ *
+ * @param which 'a' or 'b'
+ * @return uint8_t @link{ settings_button_function_t }
+ */
+uint8_t settings_get_button_press_config(char which) {
+    switch (which) {
+        case 'a':
+        case 'A':
+            return config.button_a_press;
+
+        case 'b':
+        case 'B':
+            return config.button_b_press;
+
+        default:
+            // can't to here.
+            APP_ERROR_CHECK_BOOL(false);
+            break;
+    }
+    // can't to here.
+    return SettingsButtonDisable;
+}
+
+/**
+ * @brief Set the button press config
+ *
+ * @param which 'a' or 'b'
+ * @param value @link{ settings_button_function_t }
+ */
+void settings_set_button_press_config(char which, uint8_t value) {
+    switch (which) {
+        case 'a':
+        case 'A':
+            config.button_a_press = value;
+            break;
+
+        case 'b':
+        case 'B':
+            config.button_b_press = value;
+            break;
+
+        default:
+            // can't to here.
+            APP_ERROR_CHECK_BOOL(false);
+            break;
+    }
 }

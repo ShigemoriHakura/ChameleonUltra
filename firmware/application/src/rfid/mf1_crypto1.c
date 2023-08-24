@@ -63,9 +63,9 @@
         "ror %0"             "\n\t"   \
         "lsr %2"             "\n\t"   \
         "ror %1"                      \
-        : "+r" (__even), 	          \
+        : "+r" (__even),              \
                   "+r" (__odd),       \
-          "+r" (__byte)	              \
+          "+r" (__byte)               \
                 :                     \
         : "r0" )
 
@@ -274,26 +274,26 @@ static const uint8_t TableC0[32] = {
 static const uint8_t TableC7[32] = {
     /* fc with Input {4,3,2,1,0} = (0,0,0,0,0) to (1,1,1,1,1) */
     FC(0, 0, 0, 0, 0) << 7, FC(0, 0, 0, 0, 1) << 7, FC(0, 0, 0, 1, 0) << 7, FC(0, 0, 0, 1, 1) << 7,
-    FC(0, 0, 1, 0, 0) << 7, FC(0, 0, 1, 0, 1) << 7, FC(0, 0, 1, 1, 0) << 7, FC(0, 0, 1, 1, 1) << 7,
-    FC(0, 1, 0, 0, 0) << 7, FC(0, 1, 0, 0, 1) << 7, FC(0, 1, 0, 1, 0) << 7, FC(0, 1, 0, 1, 1) << 7,
-    FC(0, 1, 1, 0, 0) << 7, FC(0, 1, 1, 0, 1) << 7, FC(0, 1, 1, 1, 0) << 7, FC(0, 1, 1, 1, 1) << 7,
-    FC(1, 0, 0, 0, 0) << 7, FC(1, 0, 0, 0, 1) << 7, FC(1, 0, 0, 1, 0) << 7, FC(1, 0, 0, 1, 1) << 7,
-    FC(1, 0, 1, 0, 0) << 7, FC(1, 0, 1, 0, 1) << 7, FC(1, 0, 1, 1, 0) << 7, FC(1, 0, 1, 1, 1) << 7,
-    FC(1, 1, 0, 0, 0) << 7, FC(1, 1, 0, 0, 1) << 7, FC(1, 1, 0, 1, 0) << 7, FC(1, 1, 0, 1, 1) << 7,
-    FC(1, 1, 1, 0, 0) << 7, FC(1, 1, 1, 0, 1) << 7, FC(1, 1, 1, 1, 0) << 7, FC(1, 1, 1, 1, 1) << 7
+                      FC(0, 0, 1, 0, 0) << 7, FC(0, 0, 1, 0, 1) << 7, FC(0, 0, 1, 1, 0) << 7, FC(0, 0, 1, 1, 1) << 7,
+                      FC(0, 1, 0, 0, 0) << 7, FC(0, 1, 0, 0, 1) << 7, FC(0, 1, 0, 1, 0) << 7, FC(0, 1, 0, 1, 1) << 7,
+                      FC(0, 1, 1, 0, 0) << 7, FC(0, 1, 1, 0, 1) << 7, FC(0, 1, 1, 1, 0) << 7, FC(0, 1, 1, 1, 1) << 7,
+                      FC(1, 0, 0, 0, 0) << 7, FC(1, 0, 0, 0, 1) << 7, FC(1, 0, 0, 1, 0) << 7, FC(1, 0, 0, 1, 1) << 7,
+                      FC(1, 0, 1, 0, 0) << 7, FC(1, 0, 1, 0, 1) << 7, FC(1, 0, 1, 1, 0) << 7, FC(1, 0, 1, 1, 1) << 7,
+                      FC(1, 1, 0, 0, 0) << 7, FC(1, 1, 0, 0, 1) << 7, FC(1, 1, 0, 1, 0) << 7, FC(1, 1, 0, 1, 1) << 7,
+                      FC(1, 1, 1, 0, 0) << 7, FC(1, 1, 1, 0, 1) << 7, FC(1, 1, 1, 1, 0) << 7, FC(1, 1, 1, 1, 1) << 7
 };
 
 /* Special table for nibble processing (e.g. ack), feedback at bit 3 */
 static const uint8_t TableC3[32] = {
     /* fc with Input {4,3,2,1,0} = (0,0,0,0,0) to (1,1,1,1,1) */
     FC(0, 0, 0, 0, 0) << 3, FC(0, 0, 0, 0, 1) << 3, FC(0, 0, 0, 1, 0) << 3, FC(0, 0, 0, 1, 1) << 3,
-    FC(0, 0, 1, 0, 0) << 3, FC(0, 0, 1, 0, 1) << 3, FC(0, 0, 1, 1, 0) << 3, FC(0, 0, 1, 1, 1) << 3,
-    FC(0, 1, 0, 0, 0) << 3, FC(0, 1, 0, 0, 1) << 3, FC(0, 1, 0, 1, 0) << 3, FC(0, 1, 0, 1, 1) << 3,
-    FC(0, 1, 1, 0, 0) << 3, FC(0, 1, 1, 0, 1) << 3, FC(0, 1, 1, 1, 0) << 3, FC(0, 1, 1, 1, 1) << 3,
-    FC(1, 0, 0, 0, 0) << 3, FC(1, 0, 0, 0, 1) << 3, FC(1, 0, 0, 1, 0) << 3, FC(1, 0, 0, 1, 1) << 3,
-    FC(1, 0, 1, 0, 0) << 3, FC(1, 0, 1, 0, 1) << 3, FC(1, 0, 1, 1, 0) << 3, FC(1, 0, 1, 1, 1) << 3,
-    FC(1, 1, 0, 0, 0) << 3, FC(1, 1, 0, 0, 1) << 3, FC(1, 1, 0, 1, 0) << 3, FC(1, 1, 0, 1, 1) << 3,
-    FC(1, 1, 1, 0, 0) << 3, FC(1, 1, 1, 0, 1) << 3, FC(1, 1, 1, 1, 0) << 3, FC(1, 1, 1, 1, 1) << 3
+                      FC(0, 0, 1, 0, 0) << 3, FC(0, 0, 1, 0, 1) << 3, FC(0, 0, 1, 1, 0) << 3, FC(0, 0, 1, 1, 1) << 3,
+                      FC(0, 1, 0, 0, 0) << 3, FC(0, 1, 0, 0, 1) << 3, FC(0, 1, 0, 1, 0) << 3, FC(0, 1, 0, 1, 1) << 3,
+                      FC(0, 1, 1, 0, 0) << 3, FC(0, 1, 1, 0, 1) << 3, FC(0, 1, 1, 1, 0) << 3, FC(0, 1, 1, 1, 1) << 3,
+                      FC(1, 0, 0, 0, 0) << 3, FC(1, 0, 0, 0, 1) << 3, FC(1, 0, 0, 1, 0) << 3, FC(1, 0, 0, 1, 1) << 3,
+                      FC(1, 0, 1, 0, 0) << 3, FC(1, 0, 1, 0, 1) << 3, FC(1, 0, 1, 1, 0) << 3, FC(1, 0, 1, 1, 1) << 3,
+                      FC(1, 1, 0, 0, 0) << 3, FC(1, 1, 0, 0, 1) << 3, FC(1, 1, 0, 1, 0) << 3, FC(1, 1, 0, 1, 1) << 3,
+                      FC(1, 1, 1, 0, 0) << 3, FC(1, 1, 1, 0, 1) << 3, FC(1, 1, 1, 1, 0) << 3, FC(1, 1, 1, 1, 1) << 3
 };
 
 /* Filter Output Macros */
@@ -652,8 +652,8 @@ void Crypto1Auth(uint8_t EncryptedReaderNonce[NONCE_SIZE]) {
         /* Bit 0 */
         Feedback = CRYPTO1_FILTER_OUTPUT_B0_24(Odd0, Odd1, Odd2);
         Feedback = Crypto1LFSRbyteFeedback(Even0, Even1, Even2, Odd0, Odd1, Odd2)
-                    ^ Feedback
-                    ^ In;
+                   ^ Feedback
+                   ^ In;
         In >>= 1;
         SHIFT24(Even0, Even1, Even2, Feedback);
 
@@ -685,8 +685,8 @@ void Crypto1Auth(uint8_t EncryptedReaderNonce[NONCE_SIZE]) {
         /* Bit 4 */
         Feedback = CRYPTO1_FILTER_OUTPUT_B0_24(Odd0, Odd1, Odd2);
         Feedback = Crypto1LFSRbyteFeedback(Even0, Even1, Even2, Odd0, Odd1, Odd2)
-                    ^ Feedback
-                    ^ In;
+                   ^ Feedback
+                   ^ In;
         In >>= 1;
         SHIFT24(Even0, Even1, Even2, Feedback);
 
@@ -701,8 +701,8 @@ void Crypto1Auth(uint8_t EncryptedReaderNonce[NONCE_SIZE]) {
         /* Bit 6 */
         Feedback = CRYPTO1_FILTER_OUTPUT_B0_24(Odd0, Odd1, Odd2);
         Feedback = Crypto1LFSRbyteFeedback(Even0, Even1, Even2, Odd0, Odd1, Odd2)
-                    ^ Feedback
-                    ^ In;
+                   ^ Feedback
+                   ^ In;
         In >>= 1;
         SHIFT24(Even0, Even1, Even2, Feedback);
 
@@ -1051,7 +1051,7 @@ void Crypto1ByteArrayWithParityHasIn(uint8_t *Buffer, uint8_t *Parity, uint8_t C
 
     while (Count--) {
         uint8_t In = *Buffer;
-        
+
         /* Bit 0, initialise keystream from parity */
         SHIFT8(KeyStream, Out);
         Feedback  = Crypto1LFSRbyteFeedback(Even0, Even1, Even2, Odd0, Odd1, Odd2) ^ In;
@@ -1190,7 +1190,7 @@ void Crypto1PRNG(uint8_t State[4], uint8_t ClockCount) {
  */
 uint32_t Crypto1FreePRNG(uint32_t x, uint32_t n) {
     x = __builtin_bswap32(x);
-    
+
     while (n--)
         x = x >> 1 | (x >> 16 ^ x >> 18 ^ x >> 19 ^ x >> 21) << 31;
 

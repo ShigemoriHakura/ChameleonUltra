@@ -44,13 +44,13 @@ static data_frame_tx_t m_frame_tx_buf_info = {
 
 
 /**
- * @brief 数据包创建，将创建之后的数据包放到缓冲区中，等待发送完毕之后设置非busy状态
- * @param cmd: 指令应答
- * @param status: 应答状态
- * @param length: 应答数据长度
- * @param data: 应答数据
+ * @briefcreateAPacket,PutTheCreatedDataPacketIntoTheBuffer,AndWaitForThePostToSetUpANonBusyState
+ * @param cmd: instructionResponse
+ * @param status:responseStatus
+ * @param length: answerDataLength
+ * @param data: answerData
  */
-data_frame_tx_t* data_frame_make(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *data_frame_make(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint8_t lrc_tx = 0x00;
     uint16_t i, j;
     // sof
@@ -94,9 +94,9 @@ void data_frame_reset(void) {
 }
 
 /**
- * @brief 数据包接收，用于接收发送过来的数据包并且进行拼接处理
- * @param data: 接收到的字节数组
- * @param length: 接收到的字节数组的长度
+ * @brief Package receiving, which is used to receive the sent from the data packet and perform splicing processing
+ * @param data: Receive byte array
+ * @param length:The length of the receiving byte array
  */
 void data_frame_receive(uint8_t *data, uint16_t length) {
     // buffer wait process
@@ -133,7 +133,7 @@ void data_frame_receive(uint8_t *data, uint16_t length) {
             }
         } else if (m_data_rx_position == 8) {  // frame head lrc
             if (m_data_rx_buffer[m_data_rx_position] != DATA_LRC_CUT(m_data_rx_lrc)) {
-                // frame head lrc error 
+                // frame head lrc error
                 NRF_LOG_ERROR("Data frame head lrc error.");
                 data_frame_reset();
                 return;
@@ -173,12 +173,12 @@ void data_frame_receive(uint8_t *data, uint16_t length) {
 }
 
 /**
- * @brief 数据包处理，当接收到的数据形成了一个完整的帧之后，
- *          将会通过此函数分发处理任务，此函数会回调通知数据处理者
- *          如果数据处理是耗时操作，则需要将此函数放在main循环中调用
+ * @brief After the data packet processing, when the received data forms a complete frame,
+ *         This function will be distributed processing tasks through this function, which will be adjusted to notify the data processing of the data
+ * If the data processing is time -consuming operation, you need to put this function in the main loop to call
  */
 void data_frame_process(void) {
-    // check if data frame 
+    // check if data frame
     if (m_data_completed) {
         // to process data frame
         if (m_frame_process_cbk != NULL) {
@@ -191,7 +191,7 @@ void data_frame_process(void) {
 }
 
 /**
- * @brief 数据包处理回调注册
+ * @brief Package processing registration registration
  */
 void on_data_frame_complete(data_frame_cbk_t callback) {
     m_frame_process_cbk = callback;

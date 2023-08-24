@@ -24,18 +24,18 @@ NRF_LOG_MODULE_REGISTER();
 
 
 
-data_frame_tx_t* cmd_processor_get_version(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_version(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint16_t version = FW_VER_NUM;
-    return data_frame_make(cmd, status, 2, (uint8_t*)&version);
+    return data_frame_make(cmd, status, 2, (uint8_t *)&version);
 }
 
 
-data_frame_tx_t* cmd_processor_get_git_version(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
-    return data_frame_make(cmd, status, strlen(GIT_VERSION), (uint8_t*)GIT_VERSION);
+data_frame_tx_t *cmd_processor_get_git_version(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+    return data_frame_make(cmd, status, strlen(GIT_VERSION), (uint8_t *)GIT_VERSION);
 }
 
 
-data_frame_tx_t* cmd_processor_change_device_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_change_device_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
 #if defined(PROJECT_CHAMELEON_ULTRA)
     if (length == 1) {
         if (data[0] == 1) {
@@ -52,76 +52,108 @@ data_frame_tx_t* cmd_processor_change_device_mode(uint16_t cmd, uint16_t status,
 #endif
 }
 
-data_frame_tx_t* cmd_processor_get_device_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_device_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     device_mode_t mode = get_device_mode();
     if (mode == DEVICE_MODE_READER) {
         status = 1;
     } else {
         status = 0;
     }
-    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t*)&status);
+    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t *)&status);
 }
 
-data_frame_tx_t* cmd_processor_enter_bootloader(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_enter_bootloader(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     // restart to boot
-    #define BOOTLOADER_DFU_GPREGRET_MASK            (0xB0)      
-    #define BOOTLOADER_DFU_START_BIT_MASK           (0x01)  
-    #define BOOTLOADER_DFU_START    (BOOTLOADER_DFU_GPREGRET_MASK |         BOOTLOADER_DFU_START_BIT_MASK)      
-    APP_ERROR_CHECK(sd_power_gpregret_clr(0,0xffffffff));
+#define BOOTLOADER_DFU_GPREGRET_MASK            (0xB0)
+#define BOOTLOADER_DFU_START_BIT_MASK           (0x01)
+#define BOOTLOADER_DFU_START    (BOOTLOADER_DFU_GPREGRET_MASK |         BOOTLOADER_DFU_START_BIT_MASK)
+    APP_ERROR_CHECK(sd_power_gpregret_clr(0, 0xffffffff));
     APP_ERROR_CHECK(sd_power_gpregret_set(0, BOOTLOADER_DFU_START));
     nrf_pwr_mgmt_shutdown(NRF_PWR_MGMT_SHUTDOWN_GOTO_DFU);
     // Never into here...
     while (1) __NOP();
 }
 
-data_frame_tx_t* cmd_processor_get_device_chip_id(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_device_chip_id(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint32_t chip_id[2];
     chip_id[0] = NRF_FICR->DEVICEID[0];
     chip_id[1] = NRF_FICR->DEVICEID[1];
-    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 8, (uint8_t*)(&chip_id[0]));
+    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 8, (uint8_t *)(&chip_id[0]));
 }
 
-data_frame_tx_t* cmd_processor_get_device_address(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_device_address(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint32_t device_address[2];
     device_address[0] = NRF_FICR->DEVICEADDR[0];
     device_address[1] = NRF_FICR->DEVICEADDR[1];
-    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 6, (uint8_t*)(&device_address[0]));
+    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 6, (uint8_t *)(&device_address[0]));
 }
 
-data_frame_tx_t* cmd_processor_save_settings(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_save_settings(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     status = settings_save_config();
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_reset_settings(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_reset_settings(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     settings_init_config();
     status = settings_save_config();
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_set_animation_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_animation_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 1) {
+        status = STATUS_DEVICE_SUCCESS;
         settings_set_animation_config(data[0]);
-    }
-    else {
-        status = STATUS_PAR_ERR; 
+    } else {
+        status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_get_animation_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_animation_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint8_t animation_mode = settings_get_animation_config();
     return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t *)(&animation_mode));
 }
 
+data_frame_tx_t *cmd_processor_get_battery_info(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+    uint8_t resp[3] = { 0x00 };
+    // set voltage
+    num_to_bytes(batt_lvl_in_milli_volts, 2, resp);
+    // set percentage
+    resp[2] = percentage_batt_lvl;
+    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, sizeof(resp), resp);
+}
+
+data_frame_tx_t *cmd_processor_get_button_press_config(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+    uint8_t button_press_config;
+    if (length == 1 && is_settings_button_type_valid(data[0])) {
+        button_press_config = settings_get_button_press_config(data[0]);
+        status = STATUS_DEVICE_SUCCESS;
+    } else {
+        length = 0;
+        status = STATUS_PAR_ERR;
+    }
+    return data_frame_make(cmd, status, length, (uint8_t *)(&button_press_config));
+}
+
+data_frame_tx_t *cmd_processor_set_button_press_config(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+    if (length == 2 && is_settings_button_type_valid(data[0])) {
+        settings_set_button_press_config(data[0], data[1]);
+        status = STATUS_DEVICE_SUCCESS;
+    } else {
+        length = 0;
+        status = STATUS_PAR_ERR;
+    }
+    return data_frame_make(cmd, status, 0, NULL);
+}
+
 #if defined(PROJECT_CHAMELEON_ULTRA)
 
-data_frame_tx_t* cmd_processor_14a_scan(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_14a_scan(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     picc_14a_tag_t taginfo;
     status = pcd_14a_reader_scan_auto(&taginfo);
     if (status == HF_TAG_OK) {
         length = sizeof(picc_14a_tag_t);
-        data = (uint8_t*)&taginfo;
+        data = (uint8_t *)&taginfo;
     } else {
         length = 0;
         data = NULL;
@@ -129,146 +161,146 @@ data_frame_tx_t* cmd_processor_14a_scan(uint16_t cmd, uint16_t status, uint16_t 
     return data_frame_make(cmd, status, length, data);
 }
 
-data_frame_tx_t* cmd_processor_detect_mf1_support(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_detect_mf1_support(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     status = Check_STDMifareNT_Support();
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_detect_mf1_nt_level(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_detect_mf1_nt_level(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     status = Check_WeakNested_Support();
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_detect_mf1_darkside(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_detect_mf1_darkside(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     status = Check_Darkside_Support();
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_mf1_darkside_acquire(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_mf1_darkside_acquire(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     DarksideCore dc;
-	if (length == 4) {
-		status = Darkside_Recover_Key(data[1], data[0], data[2], data[3], &dc);
-		if (status == HF_TAG_OK) {
-			length = sizeof(DarksideCore);
-			data = (uint8_t *)(&dc);
-		} else {
-			length = 0;
-		}
-	} else {
-		status = STATUS_PAR_ERR;
-		length = 0;
-	}
+    if (length == 4) {
+        status = Darkside_Recover_Key(data[1], data[0], data[2], data[3], &dc);
+        if (status == HF_TAG_OK) {
+            length = sizeof(DarksideCore);
+            data = (uint8_t *)(&dc);
+        } else {
+            length = 0;
+        }
+    } else {
+        status = STATUS_PAR_ERR;
+        length = 0;
+    }
     return data_frame_make(cmd, status, length, data);
 }
 
-data_frame_tx_t* cmd_processor_detect_nested_dist(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_detect_nested_dist(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     NestedDist nd;
-	if (length == 8) {
-		status = Nested_Distacne_Detect(data[1], data[0], &data[2], &nd);
-		if (status == HF_TAG_OK) {
-			length = sizeof(NestedDist);
-			data = (uint8_t *)(&nd);
-		} else {
-			length = 0;
-		}
-	} else {
-		status = STATUS_PAR_ERR;
-		length = 0;
-	}
-    return data_frame_make(cmd, status, 0, NULL);
-}
-
-data_frame_tx_t* cmd_processor_mf1_nt_distance(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
-    NestedDist nd;
-	if (length == 8) {
-		status = Nested_Distacne_Detect(data[1], data[0], &data[2], &nd);
-		if (status == HF_TAG_OK) {
-			length = sizeof(NestedDist);
-			data = (uint8_t *)(&nd);
-		} else {
-			length = 0;
-		}
-	} else {
-		status = STATUS_PAR_ERR;
-		length = 0;
-	}
-    return data_frame_make(cmd, status, length, data);
-}
-
-data_frame_tx_t* cmd_processor_mf1_nested_acquire(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
-    NestedCore ncs[SETS_NR];
-	if (length == 10) {
-		status = Nested_Recover_Key(bytes_to_num(&data[2], 6), data[1], data[0], data[9], data[8], ncs);
-		if (status == HF_TAG_OK) {
-			length = sizeof(ncs);
-			data = (uint8_t *)(&ncs);
-		} else {
-			length = 0;
-		}
-	} else {
-		status = STATUS_PAR_ERR;
-		length = 0;
-	}
-    return data_frame_make(cmd, status, length, data);
-}
-
-data_frame_tx_t* cmd_processor_mf1_auth_one_key_block(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 8) {
-		status = auth_key_use_522_hw(data[1], data[0], &data[2]);
-        pcd_14a_reader_mf1_unauth();
-	} else {
-		status = STATUS_PAR_ERR;
-	}
+        status = Nested_Distacne_Detect(data[1], data[0], &data[2], &nd);
+        if (status == HF_TAG_OK) {
+            length = sizeof(NestedDist);
+            data = (uint8_t *)(&nd);
+        } else {
+            length = 0;
+        }
+    } else {
+        status = STATUS_PAR_ERR;
+        length = 0;
+    }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_mf1_read_one_block(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_mf1_nt_distance(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+    NestedDist nd;
+    if (length == 8) {
+        status = Nested_Distacne_Detect(data[1], data[0], &data[2], &nd);
+        if (status == HF_TAG_OK) {
+            length = sizeof(NestedDist);
+            data = (uint8_t *)(&nd);
+        } else {
+            length = 0;
+        }
+    } else {
+        status = STATUS_PAR_ERR;
+        length = 0;
+    }
+    return data_frame_make(cmd, status, length, data);
+}
+
+data_frame_tx_t *cmd_processor_mf1_nested_acquire(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+    NestedCore ncs[SETS_NR];
+    if (length == 10) {
+        status = Nested_Recover_Key(bytes_to_num(&data[2], 6), data[1], data[0], data[9], data[8], ncs);
+        if (status == HF_TAG_OK) {
+            length = sizeof(ncs);
+            data = (uint8_t *)(&ncs);
+        } else {
+            length = 0;
+        }
+    } else {
+        status = STATUS_PAR_ERR;
+        length = 0;
+    }
+    return data_frame_make(cmd, status, length, data);
+}
+
+data_frame_tx_t *cmd_processor_mf1_auth_one_key_block(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+    if (length == 8) {
+        status = auth_key_use_522_hw(data[1], data[0], &data[2]);
+        pcd_14a_reader_mf1_unauth();
+    } else {
+        status = STATUS_PAR_ERR;
+    }
+    return data_frame_make(cmd, status, 0, NULL);
+}
+
+data_frame_tx_t *cmd_processor_mf1_read_one_block(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint8_t block[16] = { 0x00 };
-	if (length == 8) {
-		status = auth_key_use_522_hw(data[1], data[0], &data[2]);
-		if (status == HF_TAG_OK) {
-			status = pcd_14a_reader_mf1_read(data[1], block);
-			if (status == HF_TAG_OK) {
-				length = 16;
-			} else {
-				length = 0;
-			}
-		} else {
-			length = 0;
-		}
-	} else {
-		length = 0;
-		status = STATUS_PAR_ERR;
-	}
+    if (length == 8) {
+        status = auth_key_use_522_hw(data[1], data[0], &data[2]);
+        if (status == HF_TAG_OK) {
+            status = pcd_14a_reader_mf1_read(data[1], block);
+            if (status == HF_TAG_OK) {
+                length = 16;
+            } else {
+                length = 0;
+            }
+        } else {
+            length = 0;
+        }
+    } else {
+        length = 0;
+        status = STATUS_PAR_ERR;
+    }
     return data_frame_make(cmd, status, length, block);
 }
 
-data_frame_tx_t* cmd_processor_mf1_write_one_block(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_mf1_write_one_block(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 24) {
-		status = auth_key_use_522_hw(data[1], data[0], &data[2]);
-		if (status == HF_TAG_OK) {
-			status = pcd_14a_reader_mf1_write(data[1], &data[8]);
-		} else {
-			length = 0;
-		}
-	} else {
-		status = STATUS_PAR_ERR;
-	}
+        status = auth_key_use_522_hw(data[1], data[0], &data[2]);
+        if (status == HF_TAG_OK) {
+            status = pcd_14a_reader_mf1_write(data[1], &data[8]);
+        } else {
+            length = 0;
+        }
+    } else {
+        status = STATUS_PAR_ERR;
+    }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_em410x_scan(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_em410x_scan(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint8_t id_buffer[5] = { 0x00 };
-	status = PcdScanEM410X(id_buffer);
+    status = PcdScanEM410X(id_buffer);
     return data_frame_make(cmd, status, sizeof(id_buffer), id_buffer);
 }
 
-data_frame_tx_t* cmd_processor_write_em410x_2_t57(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
-	if (length >= 13 && (length - 9) % 4 == 0) {
-		status = PcdWriteT55XX(data, data + 5, data + 9, (length - 9) / 4);
-	} else {
-		status = STATUS_PAR_ERR;
-	}
+data_frame_tx_t *cmd_processor_write_em410x_2_t57(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+    if (length >= 13 && (length - 9) % 4 == 0) {
+        status = PcdWriteT55XX(data, data + 5, data + 9, (length - 9) / 4);
+    } else {
+        status = STATUS_PAR_ERR;
+    }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
@@ -282,57 +314,52 @@ static void change_slot_auto(uint8_t slot) {
     set_slot_light_color(0);
 }
 
-data_frame_tx_t* cmd_processor_set_slot_activated(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_slot_activated(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 1 && data[0] < TAG_MAX_SLOT_NUM) {
         change_slot_auto(data[0]);
         status = STATUS_DEVICE_SUCCESS;
-	} else {
+    } else {
         status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_set_slot_tag_type(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_slot_tag_type(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 2 && data[0] < TAG_MAX_SLOT_NUM && data[1] != TAG_TYPE_UNKNOWN) {
         uint8_t num_slot = data[0];
         uint8_t tag_type = data[1];
         tag_emulation_change_type(num_slot, (tag_specific_type_t)tag_type);
-		status = STATUS_DEVICE_SUCCESS;
-	} else {
+        status = STATUS_DEVICE_SUCCESS;
+    } else {
         status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_delete_slot_sense_type(uint16_t cmd, uint16_t status, uint16_t length, uint8_t* data) {
+data_frame_tx_t *cmd_processor_delete_slot_sense_type(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     status = STATUS_PAR_ERR;
     if (length == 2 && data[0] < TAG_MAX_SLOT_NUM && (data[1] == TAG_SENSE_HF || data[1] == TAG_SENSE_LF)) {
         uint8_t slot_num = data[0];
         uint8_t sense_type = data[1];
-        uint8_t other_st_index = sense_type == TAG_SENSE_LF ? 0 : 1;
 
-        tag_specific_type_t tag_types[2];
-        tag_emulation_get_specific_type_by_slot(slot_num, tag_types);
-        if (tag_types[other_st_index] != TAG_TYPE_UNKNOWN) {
-            tag_emulation_delete_data(slot_num, sense_type);
-            status = STATUS_DEVICE_SUCCESS;
-        }
+        tag_emulation_delete_data(slot_num, sense_type);
+        status = STATUS_DEVICE_SUCCESS;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_set_slot_data_default(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_slot_data_default(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 2 && data[0] < TAG_MAX_SLOT_NUM && data[1] != TAG_TYPE_UNKNOWN) {
         uint8_t num_slot = data[0];
         uint8_t tag_type = data[1];
         status = tag_emulation_factory_data(num_slot, (tag_specific_type_t)tag_type) ? STATUS_DEVICE_SUCCESS : STATUS_NOT_IMPLEMENTED;
-	} else {
+    } else {
         status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_set_slot_enable(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_slot_enable(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 2 && data[0] < TAG_MAX_SLOT_NUM && (data[1] == 0 || data[1] == 1)) {
         uint8_t slot_now = data[0];
         bool enable = data[1];
@@ -347,23 +374,23 @@ data_frame_tx_t* cmd_processor_set_slot_enable(uint16_t cmd, uint16_t status, ui
             }
         }
         status = STATUS_DEVICE_SUCCESS;
-	} else {
+    } else {
         status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_slot_data_config_save(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_slot_data_config_save(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     tag_emulation_save();
     return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_get_activated_slot(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_activated_slot(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint8_t slot = tag_emulation_get_slot();
     return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, &slot);
 }
 
-data_frame_tx_t* cmd_processor_get_slot_info(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_slot_info(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint8_t slot_info[16] = {};
     tag_specific_type_t tag_type[2];
     for (uint8_t slot = 0; slot < 8; slot++) {
@@ -375,54 +402,54 @@ data_frame_tx_t* cmd_processor_get_slot_info(uint16_t cmd, uint16_t status, uint
     return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 16, slot_info);
 }
 
-data_frame_tx_t* cmd_processor_wipe_fds(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_wipe_fds(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     bool success = fds_wipe();
     status = success ? STATUS_DEVICE_SUCCESS : STATUS_FLASH_WRITE_FAIL;
     delayed_reset(50);
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_set_em410x_emu_id(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_em410x_emu_id(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == LF_EM410X_TAG_ID_SIZE) {
-        tag_data_buffer_t* buffer = get_buffer_by_tag_type(TAG_TYPE_EM410X);
+        tag_data_buffer_t *buffer = get_buffer_by_tag_type(TAG_TYPE_EM410X);
         memcpy(buffer->buffer, data, LF_EM410X_TAG_ID_SIZE);
         tag_emulation_load_by_buffer(TAG_TYPE_EM410X, false);
         status = STATUS_DEVICE_SUCCESS;
-	} else {
+    } else {
         status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_get_em410x_emu_id(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
-    tag_data_buffer_t* buffer = get_buffer_by_tag_type(TAG_TYPE_EM410X);
+data_frame_tx_t *cmd_processor_get_em410x_emu_id(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+    tag_data_buffer_t *buffer = get_buffer_by_tag_type(TAG_TYPE_EM410X);
     uint8_t responseData[LF_EM410X_TAG_ID_SIZE];
     memcpy(responseData, buffer->buffer, LF_EM410X_TAG_ID_SIZE);
     status = STATUS_DEVICE_SUCCESS;
     return data_frame_make(cmd, status, LF_EM410X_TAG_ID_SIZE, responseData);
 }
 
-data_frame_tx_t* cmd_processor_set_mf1_detection_enable(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_mf1_detection_enable(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 1 && (data[0] == 0 || data[0] == 1)) {
         nfc_tag_mf1_detection_log_clear();
         nfc_tag_mf1_set_detection_enable(data[0]);
         status = STATUS_DEVICE_SUCCESS;
-	} else {
+    } else {
         status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_get_mf1_detection_status(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_mf1_detection_status(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (nfc_tag_mf1_is_detection_enable()) {
         status = 1;
     } else {
         status = 0;
     }
-    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t*)&status);
+    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t *)&status);
 }
 
-data_frame_tx_t* cmd_processor_get_mf1_detection_count(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_mf1_detection_count(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint32_t count = nfc_tag_mf1_detection_log_count();
     if (count == 0xFFFFFFFF) {
         count = 0;
@@ -431,11 +458,11 @@ data_frame_tx_t* cmd_processor_get_mf1_detection_count(uint16_t cmd, uint16_t st
     return data_frame_make(cmd, status, sizeof(uint32_t), (uint8_t *)&count);
 }
 
-data_frame_tx_t* cmd_processor_get_mf1_detection_log(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_mf1_detection_log(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint32_t count;
     uint32_t index;
     uint8_t *resp = NULL;
-    nfc_tag_mf1_auth_log_t* logs = get_mf1_auth_log(&count);
+    nfc_tag_mf1_auth_log_t *logs = get_mf1_auth_log(&count);
     if (length == 4) {
         if (count == 0xFFFFFFFF) {
             length = 0;
@@ -460,14 +487,14 @@ data_frame_tx_t* cmd_processor_get_mf1_detection_log(uint16_t cmd, uint16_t stat
     return data_frame_make(cmd, status, length, resp);
 }
 
-data_frame_tx_t* cmd_processor_set_mf1_emulator_block(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_mf1_emulator_block(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length > 0 && (((length - 1) % NFC_TAG_MF1_DATA_SIZE) == 0)) {
         uint8_t block_index = data[0];
         uint8_t block_count = (length - 1) / NFC_TAG_MF1_DATA_SIZE;
         if (block_index + block_count > NFC_TAG_MF1_BLOCK_MAX) {
             status = STATUS_PAR_ERR;
         } else {
-            tag_data_buffer_t* buffer = get_buffer_by_tag_type(TAG_TYPE_MIFARE_4096);
+            tag_data_buffer_t *buffer = get_buffer_by_tag_type(TAG_TYPE_MIFARE_4096);
             nfc_tag_mf1_information_t *info = (nfc_tag_mf1_information_t *)buffer->buffer;
             for (int i = 1, j = block_index; i < length; i += NFC_TAG_MF1_DATA_SIZE, j++) {
                 uint8_t *p_block = &data[i];
@@ -481,15 +508,14 @@ data_frame_tx_t* cmd_processor_set_mf1_emulator_block(uint16_t cmd, uint16_t sta
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_get_mf1_emulator_block(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_mf1_emulator_block(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 3) {
         uint8_t block_index = data[0];
         uint16_t block_count = data[1] | (data[2] << 8);
         if (block_count == 0 || block_index + block_count > NFC_TAG_MF1_BLOCK_MAX) {
             status = STATUS_PAR_ERR;
-        }
-        else {
-            tag_data_buffer_t* buffer = get_buffer_by_tag_type(TAG_TYPE_MIFARE_4096);
+        } else {
+            tag_data_buffer_t *buffer = get_buffer_by_tag_type(TAG_TYPE_MIFARE_4096);
             nfc_tag_mf1_information_t *info = (nfc_tag_mf1_information_t *)buffer->buffer;
             uint16_t result_length = block_count * NFC_TAG_MF1_DATA_SIZE;
             uint8_t result_buffer[result_length];
@@ -500,22 +526,21 @@ data_frame_tx_t* cmd_processor_get_mf1_emulator_block(uint16_t cmd, uint16_t sta
 
             return data_frame_make(cmd, status, result_length, result_buffer);
         }
-    }
-    else {
+    } else {
         status = STATUS_PAR_ERR;
     }
 
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_set_mf1_anti_collision_res(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_mf1_anti_collision_res(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length > 13) {
         // sak(1) + atqa(2) + uid(10)
         status = STATUS_PAR_ERR;
     } else {
         uint8_t uid_length = length - 3;
         if (is_valid_uid_size(uid_length)) {
-            nfc_tag_14a_coll_res_referen_t* info = get_mifare_coll_res();
+            nfc_tag_14a_coll_res_referen_t *info = get_mifare_coll_res();
             // copy sak
             info->sak[0] = data[0];
             // copy atqa
@@ -532,7 +557,7 @@ data_frame_tx_t* cmd_processor_set_mf1_anti_collision_res(uint16_t cmd, uint16_t
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_set_slot_tag_nick_name(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_slot_tag_nick_name(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length > 34 || length < 3) {
         status = STATUS_PAR_ERR;
     } else {
@@ -541,11 +566,11 @@ data_frame_tx_t* cmd_processor_set_slot_tag_nick_name(uint16_t cmd, uint16_t sta
         fds_slot_record_map_t map_info;
 
         get_fds_map_by_slot_sense_type_for_nick(slot, sense_type, &map_info);
-        
+
         uint8_t buffer[36];
         buffer[0] = length - 2;
         memcpy(buffer + 1, data + 2, buffer[0]);
-        
+
         bool ret = fds_write_sync(map_info.id, map_info.key, sizeof(buffer) / 4, buffer);
         if (ret) {
             status = STATUS_DEVICE_SUCCESS;
@@ -556,7 +581,7 @@ data_frame_tx_t* cmd_processor_set_slot_tag_nick_name(uint16_t cmd, uint16_t sta
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_get_slot_tag_nick_name(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_slot_tag_nick_name(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length != 2) {
         status = STATUS_PAR_ERR;
     } else {
@@ -580,7 +605,7 @@ data_frame_tx_t* cmd_processor_get_slot_tag_nick_name(uint16_t cmd, uint16_t sta
     return data_frame_make(cmd, status, length, data);
 }
 
-data_frame_tx_t* cmd_processor_get_mf1_info(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_mf1_info(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint8_t mf1_info[5] = {};
     mf1_info[0] = nfc_tag_mf1_is_detection_enable();
     mf1_info[1] = nfc_tag_mf1_is_gen1a_magic_mode();
@@ -599,64 +624,64 @@ data_frame_tx_t* cmd_processor_get_mf1_info(uint16_t cmd, uint16_t status, uint1
     return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 5, mf1_info);
 }
 
-data_frame_tx_t* cmd_processor_get_mf1_gen1a_magic_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_mf1_gen1a_magic_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (nfc_tag_mf1_is_gen1a_magic_mode()) {
         status = 1;
     } else {
         status = 0;
     }
-    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t*)&status);
+    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t *)&status);
 }
 
-data_frame_tx_t* cmd_processor_set_mf1_gen1a_magic_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_mf1_gen1a_magic_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 1 && (data[0] == 0 || data[0] == 1)) {
         nfc_tag_mf1_set_gen1a_magic_mode(data[0]);
         status = STATUS_DEVICE_SUCCESS;
-	} else {
+    } else {
         status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_get_mf1_gen2_magic_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_mf1_gen2_magic_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (nfc_tag_mf1_is_gen2_magic_mode()) {
         status = 1;
     } else {
         status = 0;
     }
-    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t*)&status);
+    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t *)&status);
 }
 
-data_frame_tx_t* cmd_processor_set_mf1_gen2_magic_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_mf1_gen2_magic_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 1 && (data[0] == 0 || data[0] == 1)) {
         nfc_tag_mf1_set_gen2_magic_mode(data[0]);
         status = STATUS_DEVICE_SUCCESS;
-	} else {
+    } else {
         status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_get_mf1_use_coll_res(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_mf1_use_coll_res(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (nfc_tag_mf1_is_use_mf1_coll_res()) {
         status = 1;
     } else {
         status = 0;
     }
-    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t*)&status);
+    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t *)&status);
 }
 
-data_frame_tx_t* cmd_processor_set_mf1_use_coll_res(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_mf1_use_coll_res(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 1 && (data[0] == 0 || data[0] == 1)) {
         nfc_tag_mf1_set_use_mf1_coll_res(data[0]);
         status = STATUS_DEVICE_SUCCESS;
-	} else {
+    } else {
         status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_get_mf1_write_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_mf1_write_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     nfc_tag_mf1_write_mode_t write_mode = nfc_tag_mf1_get_write_mode();
     if (write_mode == NFC_TAG_MF1_WRITE_NORMAL) {
         status = 0;
@@ -667,10 +692,10 @@ data_frame_tx_t* cmd_processor_get_mf1_write_mode(uint16_t cmd, uint16_t status,
     } else if (write_mode == NFC_TAG_MF1_WRITE_SHADOW) {
         status = 3;
     }
-    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t*)&status);
+    return data_frame_make(cmd, STATUS_DEVICE_SUCCESS, 1, (uint8_t *)&status);
 }
 
-data_frame_tx_t* cmd_processor_set_mf1_write_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_set_mf1_write_mode(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     if (length == 1 && (data[0] >= 0 || data[0] <= 3)) {
         uint8_t mode = data[0];
         if (mode == 0) {
@@ -683,13 +708,13 @@ data_frame_tx_t* cmd_processor_set_mf1_write_mode(uint16_t cmd, uint16_t status,
             nfc_tag_mf1_set_write_mode(NFC_TAG_MF1_WRITE_SHADOW);
         }
         status = STATUS_DEVICE_SUCCESS;
-	} else {
+    } else {
         status = STATUS_PAR_ERR;
     }
     return data_frame_make(cmd, status, 0, NULL);
 }
 
-data_frame_tx_t* cmd_processor_get_enabled_slots(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *cmd_processor_get_enabled_slots(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     uint8_t slot_info[8] = {};
     for (uint8_t slot = 0; slot < 8; slot++) {
         slot_info[slot] = tag_emulation_slot_is_enable(slot);
@@ -705,7 +730,7 @@ data_frame_tx_t* cmd_processor_get_enabled_slots(uint16_t cmd, uint16_t status, 
  * before reader run, reset reader and on antenna,
  * we must to wait some time, to init picc(power).
  */
-data_frame_tx_t* before_reader_run(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *before_reader_run(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     device_mode_t mode = get_device_mode();
     if (mode == DEVICE_MODE_READER) {
         return NULL;
@@ -719,8 +744,8 @@ data_frame_tx_t* before_reader_run(uint16_t cmd, uint16_t status, uint16_t lengt
  * before reader run, reset reader and on antenna,
  * we must to wait some time, to init picc(power).
  */
-data_frame_tx_t* before_hf_reader_run(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
-    data_frame_tx_t* ret = before_reader_run(cmd, status, length, data);
+data_frame_tx_t *before_hf_reader_run(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+    data_frame_tx_t *ret = before_reader_run(cmd, status, length, data);
     if (ret == NULL) {
         pcd_14a_reader_reset();
         pcd_14a_reader_antenna_on();
@@ -732,7 +757,7 @@ data_frame_tx_t* before_hf_reader_run(uint16_t cmd, uint16_t status, uint16_t le
 /**
  * after reader run, off antenna, to keep battery.
  */
-data_frame_tx_t* after_hf_reader_run(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
+data_frame_tx_t *after_hf_reader_run(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
     pcd_14a_reader_antenna_off();
     return NULL;
 }
@@ -755,6 +780,9 @@ static cmd_data_map_t m_data_cmd_map[] = {
     {    DATA_CMD_SET_ANIMATION_MODE,           NULL,                        cmd_processor_set_animation_mode,            NULL                   },
     {    DATA_CMD_GET_ANIMATION_MODE,           NULL,                        cmd_processor_get_animation_mode,            NULL                   },
     {    DATA_CMD_GET_GIT_VERSION,              NULL,                        cmd_processor_get_git_version,               NULL                   },
+    {    DATA_CMD_GET_BATTERY_INFO,             NULL,                        cmd_processor_get_battery_info,              NULL                   },
+    {    DATA_CMD_GET_BUTTON_PRESS_CONFIG,      NULL,                        cmd_processor_get_button_press_config,       NULL                   },
+    {    DATA_CMD_SET_BUTTON_PRESS_CONFIG,      NULL,                        cmd_processor_set_button_press_config,       NULL                   },
 
 #if defined(PROJECT_CHAMELEON_ULTRA)
 
@@ -787,7 +815,7 @@ static cmd_data_map_t m_data_cmd_map[] = {
     {    DATA_CMD_GET_ENABLED_SLOTS,            NULL,                        cmd_processor_get_enabled_slots,             NULL                   },
     {    DATA_CMD_DELETE_SLOT_SENSE_TYPE,       NULL,                        cmd_processor_delete_slot_sense_type,        NULL                   },
 
-    
+
 
     {    DATA_CMD_SET_EM410X_EMU_ID,            NULL,                        cmd_processor_set_em410x_emu_id,             NULL                   },
     {    DATA_CMD_GET_EM410X_EMU_ID,            NULL,                        cmd_processor_get_em410x_emu_id,             NULL                   },
@@ -815,27 +843,27 @@ static cmd_data_map_t m_data_cmd_map[] = {
 
 
 /**
- * @brief Auto select source to response 
- * 
+ * @brief Auto select source to response
+ *
  * @param resp data
  */
-void auto_response_data(data_frame_tx_t* resp) {
-	// TODO Please select the reply source automatically according to the message source, 
+void auto_response_data(data_frame_tx_t *resp) {
+    // TODO Please select the reply source automatically according to the message source,
     //  and do not reply by checking the validity of the link layer by layer
-	if (is_usb_working()) {
-		usb_cdc_write(resp->buffer, resp->length);
-	} else if (is_nus_working()) {
-		nus_data_reponse(resp->buffer, resp->length);
-	} else {
-		NRF_LOG_ERROR("No connection valid found at response client.");
-	}
+    if (is_usb_working()) {
+        usb_cdc_write(resp->buffer, resp->length);
+    } else if (is_nus_working()) {
+        nus_data_reponse(resp->buffer, resp->length);
+    } else {
+        NRF_LOG_ERROR("No connection valid found at response client.");
+    }
 }
 
 
 /**@brief Function for prcoess data frame(cmd)
  */
 void on_data_frame_received(uint16_t cmd, uint16_t status, uint16_t length, uint8_t *data) {
-    data_frame_tx_t* response = NULL;
+    data_frame_tx_t *response = NULL;
     bool is_cmd_support = false;
     // print info
     NRF_LOG_INFO("Data frame: cmd = %02x, status = %02x, length = %d", cmd, status, length);
@@ -844,7 +872,7 @@ void on_data_frame_received(uint16_t cmd, uint16_t status, uint16_t length, uint
         if (m_data_cmd_map[i].cmd == cmd) {
             is_cmd_support = true;
             if (m_data_cmd_map[i].cmd_before != NULL) {
-                data_frame_tx_t* before_resp = m_data_cmd_map[i].cmd_before(cmd, status, length, data);
+                data_frame_tx_t *before_resp = m_data_cmd_map[i].cmd_before(cmd, status, length, data);
                 if (before_resp != NULL) {
                     // some problem found before run cmd.
                     response = before_resp;
@@ -853,7 +881,7 @@ void on_data_frame_received(uint16_t cmd, uint16_t status, uint16_t length, uint
             }
             if (m_data_cmd_map[i].cmd_processor != NULL) response = m_data_cmd_map[i].cmd_processor(cmd, status, length, data);
             if (m_data_cmd_map[i].cmd_after != NULL) {
-                data_frame_tx_t* after_resp = m_data_cmd_map[i].cmd_after(cmd, status, length, data);
+                data_frame_tx_t *after_resp = m_data_cmd_map[i].cmd_after(cmd, status, length, data);
                 if (after_resp != NULL) {
                     // some problem found after run cmd.
                     response = after_resp;

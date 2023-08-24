@@ -3,7 +3,7 @@
 
 
 
-// 设备当前处于的模式
+//The current mode of the device
 device_mode_t rfid_state = DEVICE_MODE_NONE;
 
 
@@ -15,7 +15,7 @@ void reader_mode_enter(void) {
 #if defined(PROJECT_CHAMELEON_ULTRA)
     if (rfid_state != DEVICE_MODE_READER) {
         rfid_state = DEVICE_MODE_READER;
-        
+
         tag_emulation_sense_end();          // to end tag emulation
 
         // pin init
@@ -54,6 +54,9 @@ void tag_mode_enter(void) {
 
         nrf_gpio_cfg_output(HF_ANT_SEL);
         nrf_gpio_pin_set(HF_ANT_SEL);       // hf ant switch to emulation mode
+        // give time for fields to shutdown, else we get spurious LF detection triggered in LF emul
+        // need at least about 30ms on dev kit
+        bsp_delay_ms(60);
 #endif
 
         // to run tag emulation
@@ -65,8 +68,8 @@ void tag_mode_enter(void) {
  * @brief Function for light up led by slot index
  */
 void light_up_by_slot(void) {
-    uint32_t* led_pins = hw_get_led_array();
-    // 目前的亮灯逻辑并没有非常大的变动，因此我们暂时只需要亮起指定的位置的灯即可
+    uint32_t *led_pins = hw_get_led_array();
+    // The current lighting logic has not changed very much, so we only need to light up the specified lamp for the time being.
     uint8_t slot = tag_emulation_get_slot();
     for (int i = 0; i < RGB_LIST_NUM; i++) {
         if (i == slot) {
@@ -86,7 +89,7 @@ device_mode_t get_device_mode(void) {
 
 /**
  * @brief Get the color by slot
- * 
+ *
  * @param slot slot number, 0 - 7
  * @return uint8_t Color 0R, 1G, 2B
  */
@@ -94,10 +97,10 @@ uint8_t get_color_by_slot(uint8_t slot) {
     tag_specific_type_t tag_type[2];
     tag_emulation_get_specific_type_by_slot(slot, tag_type);
     if (tag_type[0] != TAG_TYPE_UNKNOWN && tag_type[1] != TAG_TYPE_UNKNOWN) {
-        return 0;   // 双频卡模拟，返回R，表示双频卡
-    } else if (tag_type[0] != TAG_TYPE_UNKNOWN) {   // 高频模拟，返回G
+        return 0;   // Dual -frequency card simulation, return R, indicate a dual -frequency card
+    } else if (tag_type[0] != TAG_TYPE_UNKNOWN) {   //High -frequency simulation, return G
         return 1;
-    } else {    // 低频模拟，返回B
+    } else {    // Low -frequency simulation, return B
         return 2;
     }
 }

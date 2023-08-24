@@ -41,8 +41,8 @@ NRF_LOG_MODULE_REGISTER();
 
 // Defining soft timers
 APP_TIMER_DEF(m_button_check_timer); // Timer for button debounce
-static bool m_is_read_btn_press = false;
-static bool m_is_write_btn_press = false;
+static bool m_is_b_btn_press = false;
+static bool m_is_a_btn_press = false;
 
 // cpu reset reason
 static uint32_t m_reset_source;
@@ -148,12 +148,17 @@ static void timer_button_event_handle(void *arg) {
     // Check here if the current GPIO is at the pressed level
     if (nrf_gpio_pin_read(pin) == 1) {
         if (pin == BUTTON_1) {
-            NRF_LOG_INFO("BUTTON_LEFT");
-            m_is_read_btn_press = true;
+            // If button is disable, we can didn't dispatch key event.
+            if (settings_get_button_press_config('b') != SettingsButtonDisable) {
+                NRF_LOG_INFO("BUTTON_LEFT"); // Button B?
+                m_is_b_btn_press = true;
+            }
         }
         if (pin == BUTTON_2) {
-            NRF_LOG_INFO("BUTTON_RIGHT");
-            m_is_write_btn_press = true;
+            if (settings_get_button_press_config('a') != SettingsButtonDisable) {
+                NRF_LOG_INFO("BUTTON_RIGHT"); // Button A?
+                m_is_a_btn_press = true;
+            }
         }
     }
 }
@@ -196,11 +201,11 @@ static void system_off_enter(void) {
 
     // Configure RAM hibernation hold
     uint32_t ram8_retention = // RAM8 Each section has 32KB capacity
-                              // POWER_RAM_POWER_S0RETENTION_On << POWER_RAM_POWER_S0RETENTION_Pos ;
-                              // POWER_RAM_POWER_S1RETENTION_On << POWER_RAM_POWER_S1RETENTION_Pos |
-                              // POWER_RAM_POWER_S2RETENTION_On << POWER_RAM_POWER_S2RETENTION_Pos |
-                              // POWER_RAM_POWER_S3RETENTION_On << POWER_RAM_POWER_S3RETENTION_Pos |
-                              // POWER_RAM_POWER_S4RETENTION_On << POWER_RAM_POWER_S4RETENTION_Pos |
+        // POWER_RAM_POWER_S0RETENTION_On << POWER_RAM_POWER_S0RETENTION_Pos ;
+        // POWER_RAM_POWER_S1RETENTION_On << POWER_RAM_POWER_S1RETENTION_Pos |
+        // POWER_RAM_POWER_S2RETENTION_On << POWER_RAM_POWER_S2RETENTION_Pos |
+        // POWER_RAM_POWER_S3RETENTION_On << POWER_RAM_POWER_S3RETENTION_Pos |
+        // POWER_RAM_POWER_S4RETENTION_On << POWER_RAM_POWER_S4RETENTION_Pos |
         POWER_RAM_POWER_S5RETENTION_On << POWER_RAM_POWER_S5RETENTION_Pos;
     ret = sd_power_ram_power_set(8, ram8_retention);
     APP_ERROR_CHECK(ret);
@@ -217,7 +222,7 @@ static void system_off_enter(void) {
         }
     } else {
         // close all led.
-        uint32_t* p_led_array = hw_get_led_array();
+        uint32_t *p_led_array = hw_get_led_array();
         for (uint8_t i = 0; i < RGB_LIST_NUM; i++) {
             nrf_gpio_pin_clear(p_led_array[i]);
         }
@@ -272,7 +277,7 @@ static void system_off_enter(void) {
 
     // IOs that need to be configured as push-pull outputs and pulled low
     uint32_t gpio_cfg_output_low[] = {
-        LED_1, LED_2, LED_3, LED_4, LED_5, LED_6, LED_7, LED_8, LF_MOD, 
+        LED_1, LED_2, LED_3, LED_4, LED_5, LED_6, LED_7, LED_8, LF_MOD,
 #if defined(PROJECT_CHAMELEON_ULTRA)
         READER_POWER, LF_ANT_DRIVER
 #endif
@@ -290,24 +295,24 @@ static void system_off_enter(void) {
     // Turn off all soft timers
     app_timer_stop_all();
 
-    // 检查是否存在低频场，解决休眠时有非常强的场信号一直使比较器处于高电平输入状态从而无法产生上升沿而无法唤醒系统的问题。
-    if(lf_is_field_exists()) {
-        // 关闭比较器
+    // Check whether there are low -frequency fields, solving very strong field signals during dormancy have always caused the comparator to be at a high level input state, so that the problem of uprising the rising edge cannot be awakened.
+    if (lf_is_field_exists()) {
+        // Close the comparator
         nrf_drv_lpcomp_disable();
-        // 设置reset原因，重启后需要拿到此原因，避免误判唤醒源
+        // Set the reason for Reset. After restarting, you need to get this reason to avoid misjudgment from the source of wake up.
         sd_power_gpregret_clr(1, GPREGRET_CLEAR_VALUE_DEFAULT);
         sd_power_gpregret_set(1, RESET_ON_LF_FIELD_EXISTS_Msk);
-        // 触发reset唤醒系统，重新启动模拟过程
+        // Trigger the RESET awakening system, restart the simulation process
         nrf_pwr_mgmt_shutdown(NRF_PWR_MGMT_SHUTDOWN_RESET);
         return;
     };
 
     // Go to system-off mode (this function will not return; wakeup will cause a reset).
-    // 注意，如果插着jlink或者开着debug，进入低功耗的函数可能会报错，
-    // 开启调试时我们应当禁用低功耗状态值检测，或者干脆不进入低功耗
+    // Note that if you insert jlink or drive a Debug, you may report an error when entering the low power consumption.
+    // When starting debugging, we should disable low power consumption state values, or simply not enter low power consumption
     ret = sd_power_system_off();
 
-    // OK，此处非常重要，如果开启了日志输出并且使能了RTT，则不去检查低功耗模式的错误
+    // OK, here is very important. If you open the log output and enable RTT, you will not check the error of the low power mode
 #if !(NRF_LOG_ENABLED && NRF_LOG_BACKEND_RTT_ENABLED)
     APP_ERROR_CHECK(ret);
 #else
@@ -345,15 +350,14 @@ static void check_wakeup_src(void) {
     uint8_t slot = tag_emulation_get_slot();
     uint8_t dir = slot > 3 ? 1 : 0;
     uint8_t color = get_color_by_slot(slot);
-    
+
     if (m_reset_source & NRF_POWER_RESETREAS_OFF_MASK) {
         NRF_LOG_INFO("WakeUp from button");
         advertising_start(); // Turn on Bluetooth radio
 
         // Button wake-up boot animation
         uint8_t animation_config = settings_get_animation_config();
-        if (animation_config == SettingsAnimationModeFull)
-        {
+        if (animation_config == SettingsAnimationModeFull) {
             ledblink2(color, !dir, 11);
             ledblink2(color, dir, 11);
             ledblink2(color, !dir, dir ? slot : 7 - slot);
@@ -385,7 +389,7 @@ static void check_wakeup_src(void) {
             }
         }
 
-        // 当前是模拟卡事件唤醒系统，我们可以让场强灯先亮起来
+        // It is currently the wake -up system of the simulation card event, we can make the strong lights on the field first
         TAG_FIELD_LED_ON();
 
         uint8_t animation_config = settings_get_animation_config();
@@ -401,7 +405,7 @@ static void check_wakeup_src(void) {
     } else if (m_reset_source & NRF_POWER_RESETREAS_VBUS_MASK) {
         // nrfx_power_usbstatus_get() can check usb attach status
         NRF_LOG_INFO("WakeUp from VBUS(USB)");
-        
+
         // USB plugged in and open communication break has its own light effect, no need to light up for the time being
         // set_slot_light_color(color);
         // light_up_by_slot();
@@ -439,41 +443,209 @@ static void check_wakeup_src(void) {
     }
 }
 
+/**@brief change slot
+ */
+static void cycle_slot(bool dec) {
+    // In any case, a button event occurs and we need to get the currently active card slot first
+    uint8_t slot_now = tag_emulation_get_slot();
+    uint8_t slot_new = slot_now;
+    // Handle the events of a button
+    if (dec) {
+        slot_new = tag_emulation_slot_find_prev(slot_now);
+    } else {
+        slot_new = tag_emulation_slot_find_next(slot_now);
+    }
+    // Update status only if the new card slot switch is valid
+    tag_emulation_change_slot(slot_new, true); // Tell the analog card module that we need to switch card slots
+    // Go back to the color corresponding to the field enablement type
+    uint8_t color_now = get_color_by_slot(slot_now);
+    uint8_t color_new = get_color_by_slot(slot_new);
+    // Switching the light effect of the card slot
+    ledblink3(slot_now, color_now, slot_new, color_new);
+    // Switched the card slot, we need to re-light
+    light_up_by_slot();
+    // Then switch the color of the light again
+    set_slot_light_color(color_new);
+}
+
+#if defined(PROJECT_CHAMELEON_ULTRA)
+
+static void offline_status_blink_color(uint8_t blink_color) {
+    uint8_t slot = tag_emulation_get_slot();
+
+    uint8_t color = get_color_by_slot(slot);
+
+    uint32_t *p_led_array = hw_get_led_array();
+
+    set_slot_light_color(blink_color);
+
+    for (uint8_t i = 0; i < RGB_LIST_NUM; i++) {
+        if (i == slot) {
+            continue;
+        }
+        nrf_gpio_pin_set(p_led_array[i]);
+        bsp_delay_ms(10);
+        nrf_gpio_pin_clear(p_led_array[i]);
+        bsp_delay_ms(10);
+    }
+
+    set_slot_light_color(color);
+}
+
+static void offline_status_error(void) {
+    offline_status_blink_color(0);
+}
+
+static void offline_status_ok(void) {
+    offline_status_blink_color(1);
+}
+
+// fast detect a 14a tag uid to sim
+static void btn_fn_copy_ic_uid(void) {
+    // get 14a tag res buffer;
+    uint8_t slot_now = tag_emulation_get_slot();
+    tag_specific_type_t tag_type[2];
+    tag_emulation_get_specific_type_by_slot(slot_now, tag_type);
+
+    nfc_tag_14a_coll_res_entity_t *antres;
+
+    bool is_reader_mode_now = get_device_mode() == DEVICE_MODE_READER;
+    // first, we need switch to reader mode.
+    if (!is_reader_mode_now) {
+        // enter reader mode
+        reader_mode_enter();
+        bsp_delay_ms(8);
+        NRF_LOG_INFO("Start reader mode to offline copy.")
+    }
+
+    switch (tag_type[1]) {
+        case TAG_TYPE_EM410X:
+            uint8_t status;
+            uint8_t id_buffer[5] = { 0x00 };
+            status = PcdScanEM410X(id_buffer);
+
+            if (status == LF_TAG_OK) {
+                tag_data_buffer_t *buffer = get_buffer_by_tag_type(TAG_TYPE_EM410X);
+                memcpy(buffer->buffer, id_buffer, LF_EM410X_TAG_ID_SIZE);
+                tag_emulation_load_by_buffer(TAG_TYPE_EM410X, false);
+                NRF_LOG_INFO("Offline LF uid copied")
+                offline_status_ok();
+                // no need to check for HF tag if we already cloned a LF tag
+                goto exit;
+            } else {
+                NRF_LOG_INFO("No LF tag found");
+                offline_status_error();
+            }
+            break;
+        case TAG_TYPE_UNKNOWN:
+            // empty LF slot, nothing to do, move on to HF
+            break;
+        default:
+            NRF_LOG_ERROR("Unsupported LF tag type")
+            offline_status_error();
+    }
+
+    tag_data_buffer_t *buffer = get_buffer_by_tag_type(tag_type[0]);
+    switch (tag_type[0]) {
+        case TAG_TYPE_MIFARE_Mini:
+        case TAG_TYPE_MIFARE_1024:
+        case TAG_TYPE_MIFARE_2048:
+        case TAG_TYPE_MIFARE_4096: {
+            nfc_tag_mf1_information_t *p_info = (nfc_tag_mf1_information_t *)buffer->buffer;
+            antres = &(p_info->res_coll);
+            break;
+        }
+
+        case TAG_TYPE_NTAG_213:
+        case TAG_TYPE_NTAG_215:
+        case TAG_TYPE_NTAG_216: {
+            nfc_tag_ntag_information_t *p_info = (nfc_tag_ntag_information_t *)buffer->buffer;
+            antres = &(p_info->res_coll);
+            break;
+        }
+
+        case TAG_TYPE_UNKNOWN:
+            // empty HF slot, nothing to do
+            goto exit;
+
+        default:
+            NRF_LOG_ERROR("Unsupported HF tag type")
+            offline_status_error();
+            goto exit;
+    }
+
+    if (!is_reader_mode_now) {
+        // finish HF reader initialization
+        pcd_14a_reader_reset();
+        pcd_14a_reader_antenna_on();
+        bsp_delay_ms(8);
+    }
+    // select a tag
+    picc_14a_tag_t tag;
+    uint8_t status;
+
+    status = pcd_14a_reader_scan_auto(&tag);
+    if (status == HF_TAG_OK) {
+        // copy uid
+        memcpy(antres->uid, tag.uid, tag.uid_len);
+        // copy atqa
+        memcpy(antres->atqa, tag.atqa, 2);
+        // copy sak
+        antres->sak[0] = tag.sak;
+        NRF_LOG_INFO("Offline HF uid copied")
+        offline_status_ok();
+    } else {
+        NRF_LOG_INFO("No HF tag found");
+        offline_status_error();
+    }
+exit:
+    // keep reader mode or exit reader mode.
+    if (!is_reader_mode_now) {
+        tag_mode_enter();
+    }
+}
+
+#endif
+
+/**@brief Execute the corresponding logic based on the functional settings of the buttons.
+ */
+static void run_button_function_by_settings(settings_button_function_t sbf) {
+    switch (sbf) {
+        case SettingsButtonCycleSlot:
+            cycle_slot(false);
+            break;
+        case SettingsButtonCycleSlotDec:
+            cycle_slot(true);
+            break;
+
+#if defined(PROJECT_CHAMELEON_ULTRA)
+        case SettingsButtonCloneIcUid:
+            btn_fn_copy_ic_uid();
+            break;
+#endif
+
+        default:
+            NRF_LOG_ERROR("Unsupported button function")
+            break;
+    }
+}
+
 /**@brief button press event process
  */
 extern bool g_usb_led_marquee_enable;
 static void button_press_process(void) {
     // Make sure that one of the AB buttons has a click event
-    if (m_is_read_btn_press || m_is_write_btn_press) {
-        // In any case, a button event occurs and we need to get the currently active card slot first
-        uint8_t slot_now = tag_emulation_get_slot();
-        uint8_t slot_new = slot_now;
-        // Handle the events of a button
-        if (m_is_read_btn_press) {
-            // Button left press
-            m_is_read_btn_press = false;
-            slot_new = tag_emulation_slot_find_prev(slot_now);
+    if (m_is_b_btn_press || m_is_a_btn_press) {
+        if (m_is_a_btn_press) {
+            run_button_function_by_settings(settings_get_button_press_config('a'));
+            m_is_a_btn_press = false;
         }
-        if (m_is_write_btn_press) {
-            // Button right press
-            m_is_write_btn_press = false;
-            slot_new = tag_emulation_slot_find_next(slot_now);
+        if (m_is_b_btn_press) {
+            run_button_function_by_settings(settings_get_button_press_config('b'));
+            m_is_b_btn_press = false;
         }
-        // Update status only if the new card slot switch is valid
-        if (slot_new != slot_now) {
-            tag_emulation_change_slot(slot_new, true); // Tell the analog card module that we need to switch card slots
-            g_usb_led_marquee_enable = false;
-            // Go back to the color corresponding to the field enablement type
-            uint8_t color_now = get_color_by_slot(slot_now);
-            uint8_t color_new = get_color_by_slot(slot_new);
-            
-            // Switching the light effect of the card slot
-            ledblink3(slot_now, color_now, slot_new, color_new);
-            // Switched the card slot, we need to re-light
-            light_up_by_slot();
-            // Then switch the color of the light again
-            set_slot_light_color(color_new);
-        }
+        // Disable led marquee for usb at button pressed.
+        g_usb_led_marquee_enable = false;
         // Re-delay into hibernation
         sleep_timer_start(SLEEP_DELAY_MS_BUTTON_CLICK);
     }
@@ -493,7 +665,6 @@ static void blink_usb_led_status(void) {
             is_working = false;
         }
     } else {
-
         // The light effect is enabled and can be displayed
         if (is_rgb_marquee_enable()) {
             is_working = true;
@@ -538,7 +709,7 @@ int main(void) {
 
     // cmd callback register
     on_data_frame_complete(on_data_frame_received);
-    
+
     check_wakeup_src();       // Detect wake-up source and decide BLE broadcast and subsequent hibernation action according to the wake-up source
     tag_mode_enter();         // Enter card simulation mode by default
 

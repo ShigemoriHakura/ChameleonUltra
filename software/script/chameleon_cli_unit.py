@@ -8,6 +8,7 @@ import timeit
 import sys
 import time
 import serial.tools.list_ports
+from platform import uname
 
 import chameleon_com
 import chameleon_cmd
@@ -157,6 +158,7 @@ hw_slot = hw.subgroup('slot', 'Emulation tag slot.')
 hw_slot_nick = hw_slot.subgroup('nick', 'Get/Set tag nick name for slot')
 hw_settings = hw.subgroup('settings', 'Chameleon settings management')
 hw_settings_animation = hw_settings.subgroup('animation', 'Manage wake-up and sleep animation modes')
+hw_settings_button_press = hw_settings.subgroup('btnpress', 'Manage button press function')
 
 hf = CLITree('hf', 'high frequency tag/reader')
 hf_14a = hf.subgroup('14a', 'ISO14443-a tag read/write/info...')
@@ -187,11 +189,28 @@ class HWConnect(BaseCLIUnit):
     def on_exec(self, args: argparse.Namespace):
         try:
             if args.port is None:  # Chameleon auto-detect if no port is supplied
-                # loop through all ports and find chameleon
-                for port in serial.tools.list_ports.comports():
-                    if port.vid == 0x6868:
-                        args.port = port.device
-                        break
+                platformname = uname().release
+                if 'Microsoft' in platformname:
+                    path = os.environ["PATH"].split(os.pathsep)
+                    path.append("/mnt/c/Windows/System32/WindowsPowerShell/v1.0/")
+                    for prefix in path:
+                        fn = os.path.join(prefix, "powershell.exe")
+                        if not os.path.isdir(fn) and os.access(fn, os.X_OK):
+                            PSHEXE=fn
+                            break
+                    if PSHEXE:
+                        #process = subprocess.Popen([PSHEXE,"Get-CimInstance -ClassName Win32_serialport | Where-Object {$_.PNPDeviceID -like '*VID_6868&PID_8686*'} | Select -expandproperty DeviceID"],stdout=subprocess.PIPE);
+                        process = subprocess.Popen([PSHEXE,"Get-PnPDevice -Class Ports -PresentOnly | where {$_.DeviceID -like '*VID_6868&PID_8686*'} | Select-Object FriendlyName | % FriendlyName | select-string COM\d+ |% { $_.matches.value }"],stdout=subprocess.PIPE);
+                        res = process.communicate()[0]
+                        _comport = res.decode('utf-8').strip()
+                        if _comport:
+                            args.port = _comport.replace('COM', '/dev/ttyS')
+                else:
+                    # loop through all ports and find chameleon
+                    for port in serial.tools.list_ports.comports():
+                        if port.vid == 0x6868:
+                            args.port = port.device
+                            break
                 if args.port is None:  # If no chameleon was found, exit
                     print("Chameleon not found, please connect the device or try connecting manually with the -p flag.")
                     return
@@ -742,7 +761,7 @@ class HFMFERead(DeviceRequiredUnit):
                     fd.write(bytes([0x0a]))
                 else:
                     fd.write(response.data)
-        
+
         print("\n - Read success")
 
 
@@ -1016,9 +1035,7 @@ class HWSlotTagType(TagTypeRequiredUnit, SlotIndexRequireUnit):
 class HWDeleteSlotSense(SlotIndexRequireUnit, SenseTypeRequireUnit):
     def args_parser(self) -> ArgumentParserNoExit:
         parser = ArgumentParserNoExit()
-        parser.description = "Delete sense type data for a specific slot. " \
-                "The slot needs to have the other sense type correctly configured, " \
-                "otherwise an error will be thrown."
+        parser.description = "Delete sense type data for a specific slot."
         self.add_slot_args(parser)
         self.add_sense_type_args(parser)
         return parser
@@ -1108,7 +1125,7 @@ class HWSlotNickSet(SlotIndexRequireUnit, SenseTypeRequireUnit):
         uname = name.encode(encoding="utf8")
         if len(uname) > 32:
             raise ValueError("Your tag nick name too long.")
-        self.cmd.set_slot_tag_nick_name(slot_num, sense_type, name)
+        self.cmd.set_slot_tag_nick_name(slot_num, sense_type, uname)
         print(f' - Set tag nick name for slot {slot_num} success.')
 
 
@@ -1265,3 +1282,67 @@ class HWFactoryReset(DeviceRequiredUnit):
             print(" - A Serial Error below is normal, please ignore it")
         else:
             print(" - Reset failed!")
+
+
+@hw.command('battery', 'Get battery information, voltage and level.')
+class HWBatteryInfo(DeviceRequiredUnit):
+    # How much remaining battery is considered low?
+    BATTERY_LOW_LEVEL = 30
+
+    def args_parser(self) -> ArgumentParserNoExit:
+        return None
+
+    def on_exec(self, args: argparse.Namespace):
+        resp = self.cmd.battery_informartion()
+        voltage =  int.from_bytes(resp.data[:2], 'big')
+        percentage = resp.data[2]
+        print(" - Battery informartion:")
+        print(f"   voltage    -> {voltage}mV")
+        print(f"   percentage -> {percentage}%")
+        if percentage < HWBatteryInfo.BATTERY_LOW_LEVEL:
+            print(f"{colorama.Fore.RED}[!] Low battery, please charge.{colorama.Style.RESET_ALL}")
+
+
+@hw_settings_button_press.command('get', 'Get button press function of Button A and Button B.')
+class HWButtonSettingsGet(DeviceRequiredUnit):
+
+    def args_parser(self) -> ArgumentParserNoExit:
+        return None
+
+    def on_exec(self, args: argparse.Namespace):
+        # all button in here.
+        button_list = [
+            chameleon_cmd.ButtonType.ButtonA,
+            chameleon_cmd.ButtonType.ButtonB,
+        ]
+        print("")
+        for button in button_list:
+            resp = self.cmd.get_button_press_fun(button)
+            button_fn = chameleon_cmd.ButtonPressFunction.from_int(resp.data[0])
+            print(f" - {colorama.Fore.GREEN}{button}{colorama.Style.RESET_ALL}: {button_fn}")
+            print(f"      usage: {button_fn.usage()}")
+            print("")
+        print(" - Successfully get button function from settings")
+
+
+@hw_settings_button_press.command('set', 'Set button press function of Button A and Button B.')
+class HWButtonSettingsSet(DeviceRequiredUnit):
+
+    def args_parser(self) -> ArgumentParserNoExit:
+        parser = ArgumentParserNoExit()
+        parser.add_argument('-b', type=str, required=True,
+                            help="Change the function of the pressed button(?).",
+                            choices=chameleon_cmd.ButtonType.list_str())
+        function_usage = ""
+        for fun in chameleon_cmd.ButtonPressFunction:
+            function_usage += f"{int(fun)} = {fun.usage()}, "
+        function_usage = function_usage.rstrip(' ').rstrip(',')
+        parser.add_argument('-f', type=int, required=True,
+                            help=function_usage, choices=chameleon_cmd.ButtonPressFunction.list())
+        return parser
+
+    def on_exec(self, args: argparse.Namespace):
+        button = chameleon_cmd.ButtonType.from_str(args.b)
+        function = chameleon_cmd.ButtonPressFunction.from_int(args.f)
+        self.cmd.set_button_press_fun(button, function)
+        print(" - Successfully set button function to settings")

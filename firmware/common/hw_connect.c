@@ -81,8 +81,8 @@ void board_lite_high_voltage_set(void) {
     NRF_POWER->DCDCEN = 0;
     NRF_POWER->DCDCEN0 = 0;
 #endif
-     // if the chameleon lite is powered from USB (high voltage mode), GPIO output voltage is set to 1.8 volts by
-     // default and that is not enough to turn the green and blue LEDs on. Increase GPIO voltage to 3.0 volts.
+    // if the chameleon lite is powered from USB (high voltage mode), GPIO output voltage is set to 1.8 volts by
+    // default and that is not enough to turn the green and blue LEDs on. Increase GPIO voltage to 3.0 volts.
     if (((NRF_UICR->REGOUT0 & UICR_REGOUT0_VOUT_Msk) == (UICR_REGOUT0_VOUT_DEFAULT << UICR_REGOUT0_VOUT_Pos))) {
         NRF_NVMC->CONFIG = NVMC_CONFIG_WEN_Wen << NVMC_CONFIG_WEN_Pos;
         while (NRF_NVMC->READY == NVMC_READY_READY_Busy);
@@ -103,21 +103,21 @@ void hw_connect_init(void) {
     // 测试的时候可以直接改写此版本号
     m_hw_ver = 1;
 
-    
+
 #if defined(PROJECT_CHAMELEON_ULTRA)
     if (m_hw_ver == 1) {
-        LED_FIELD       =   (NRF_GPIO_PIN_MAP(1, 1));
-        LED_R           =   (NRF_GPIO_PIN_MAP(0, 24));
-        LED_G           =   (NRF_GPIO_PIN_MAP(0, 22));
-        LED_B           =   (NRF_GPIO_PIN_MAP(1, 0));
-        LED_1           =   (NRF_GPIO_PIN_MAP(0, 20));
-        LED_2           =   (NRF_GPIO_PIN_MAP(0, 17));
-        LED_3           =   (NRF_GPIO_PIN_MAP(0, 15));
-        LED_4           =   (NRF_GPIO_PIN_MAP(0, 13));
-        LED_5           =   (NRF_GPIO_PIN_MAP(0, 12));
-        LED_6           =   (NRF_GPIO_PIN_MAP(1, 9));
-        LED_7           =   (NRF_GPIO_PIN_MAP(0, 8));
-        LED_8           =   (NRF_GPIO_PIN_MAP(0, 6));
+        LED_FIELD       = (NRF_GPIO_PIN_MAP(1, 1));
+        LED_R           = (NRF_GPIO_PIN_MAP(0, 24));
+        LED_G           = (NRF_GPIO_PIN_MAP(0, 22));
+        LED_B           = (NRF_GPIO_PIN_MAP(1, 0));
+        LED_1           = (NRF_GPIO_PIN_MAP(0, 20));
+        LED_2           = (NRF_GPIO_PIN_MAP(0, 17));
+        LED_3           = (NRF_GPIO_PIN_MAP(0, 15));
+        LED_4           = (NRF_GPIO_PIN_MAP(0, 13));
+        LED_5           = (NRF_GPIO_PIN_MAP(0, 12));
+        LED_6           = (NRF_GPIO_PIN_MAP(1, 9));
+        LED_7           = (NRF_GPIO_PIN_MAP(0, 8));
+        LED_8           = (NRF_GPIO_PIN_MAP(0, 6));
         RGB_LIST_NUM    = 8;
         RGB_CTRL_NUM    = 3;
 
@@ -181,7 +181,7 @@ void hw_connect_init(void) {
     INIT_LED_ARRAY(6, LED_6);
     INIT_LED_ARRAY(7, LED_7);
     INIT_LED_ARRAY(8, LED_8);
-    
+
     INIT_RGB_ARRAY(1, LED_R);
     INIT_RGB_ARRAY(2, LED_G);
     INIT_RGB_ARRAY(3, LED_B);
@@ -190,15 +190,15 @@ void hw_connect_init(void) {
     sprintf(g_extern_product_str, "%s: hw_v%d, fw_v%d", DEVICE_NAME_STR, m_hw_ver, FW_VER_NUM);
 }
 
-uint32_t* hw_get_led_array(void) {
+uint32_t *hw_get_led_array(void) {
     return m_led_array;
 }
 
-uint32_t* hw_get_led_reversal_array(void) {
+uint32_t *hw_get_led_reversal_array(void) {
     return m_led_reversal_array;
 }
 
-uint32_t* hw_get_rgb_array(void) {
+uint32_t *hw_get_rgb_array(void) {
     return m_rgb_array;
 }
 
@@ -212,9 +212,9 @@ uint8_t hw_get_version_code(void) {
 
 // 初始化设备的LED灯珠
 void init_leds(void) {
-    uint32_t* led_pins = hw_get_led_array();
-    uint32_t* led_rgb_pins = hw_get_rgb_array();
-    
+    uint32_t *led_pins = hw_get_led_array();
+    uint32_t *led_rgb_pins = hw_get_rgb_array();
+
     // 初始化卡槽那几颗LED灯的GPIO（其他的LED由其他的模块控制）
     for (uint8_t i = 0; i < RGB_LIST_NUM; i++) {
         nrf_gpio_cfg_output(led_pins[i]);
@@ -240,7 +240,7 @@ void set_slot_light_color(uint8_t color) {
     nrf_gpio_pin_set(LED_R);
     nrf_gpio_pin_set(LED_G);
     nrf_gpio_pin_set(LED_B);
-    switch(color) {
+    switch (color) {
         case 0:
             nrf_gpio_pin_clear(LED_R);
             break;
@@ -251,5 +251,5 @@ void set_slot_light_color(uint8_t color) {
             nrf_gpio_pin_clear(LED_B);
             break;
     }
-    
+
 }
