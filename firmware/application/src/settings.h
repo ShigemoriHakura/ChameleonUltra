@@ -5,7 +5,9 @@
 
 #include "utils.h"
 
-#define SETTINGS_CURRENT_VERSION 2
+#define SETTINGS_CURRENT_VERSION 4
+#define BLE_CONNECT_KEY_LEN_MAX 6
+#define DEFAULT_BLE_CONNECT_KEY "123456"  // length must == 6
 
 typedef enum {
     SettingsAnimationModeFull = 0U,
@@ -30,15 +32,28 @@ typedef struct ALIGN_U32 {
 
     // 1 byte
     uint8_t animation_config : 2;
-    uint8_t reserved0 : 6;
+    uint8_t reserved0 : 6; // If you are add switch field, reallocating me.
 
     // 1 byte
     uint8_t button_a_press : 4;
     uint8_t button_b_press : 4;
 
-    // 8 byte
-    uint32_t reserved1;
-    uint32_t reserved2;
+    // 1 byte
+    uint8_t button_a_long_press : 4;
+    uint8_t button_b_long_press : 4;
+
+    // 6 byte
+    uint8_t ble_connect_key[6];
+
+    // 1 byte
+    uint8_t reserved1; // see bottom.
+
+    /*
+     * Warning !!!!!!!!!!!!!!!!!!!!!! <-------------
+     * If you need to add settings,
+     * please be sure to consult the documentation of the bit field
+     * and fully use the space of this structure before considering reallocating memory space.
+     */
 } settings_data_t;
 
 void settings_init_config(void);
@@ -48,7 +63,10 @@ uint8_t settings_save_config(void);
 uint8_t settings_get_animation_config(void);
 void settings_set_animation_config(uint8_t value);
 uint8_t settings_get_button_press_config(char which);
+uint8_t settings_get_long_button_press_config(char which);
 void settings_set_button_press_config(char which, uint8_t value);
+void settings_set_long_button_press_config(char which, uint8_t value);
 bool is_settings_button_type_valid(char type);
-
+uint8_t *settings_get_ble_connect_key(void);
+void settings_set_ble_connect_key(uint8_t *key);
 #endif

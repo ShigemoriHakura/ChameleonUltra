@@ -33,6 +33,11 @@
 #define DATA_CMD_GET_BATTERY_INFO               (1025)
 #define DATA_CMD_GET_BUTTON_PRESS_CONFIG        (1026)
 #define DATA_CMD_SET_BUTTON_PRESS_CONFIG        (1027)
+#define DATA_CMD_GET_LONG_BUTTON_PRESS_CONFIG   (1028)
+#define DATA_CMD_SET_LONG_BUTTON_PRESS_CONFIG   (1029)
+#define DATA_CMD_SET_BLE_CONNECT_KEY_CONFIG     (1030)
+#define DATA_CMD_GET_BLE_CONNECT_KEY_CONFIG     (1031)
+#define DATA_CMD_DELETE_ALL_BLE_BONDS           (1032)
 
 //
 // ******************************************************************
