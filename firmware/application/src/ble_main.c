@@ -106,8 +106,8 @@ static ble_opt_t m_static_pin_option;
  * @details This function will set up the ble connect passkey.
  */
 void set_ble_connect_key(uint8_t *key) {
-    static uint8_t passkey[BLE_CONNECT_KEY_LEN_MAX];
-    memcpy(passkey, key, BLE_CONNECT_KEY_LEN_MAX);
+    static uint8_t passkey[BLE_PAIRING_KEY_LEN];
+    memcpy(passkey, key, BLE_PAIRING_KEY_LEN);
     m_static_pin_option.gap_opt.passkey.p_passkey = passkey;
     // NRF_LOG_RAW_HEXDUMP_INFO(passkey, 6);
     APP_ERROR_CHECK(sd_ble_opt_set(BLE_GAP_OPT_PASSKEY, &m_static_pin_option));
@@ -322,9 +322,15 @@ static void services_init(void) {
     bas_init_obj.p_report_ref         = NULL;
     bas_init_obj.initial_batt_level   = 100;
 
-    bas_init_obj.bl_rd_sec        = SEC_MITM;
-    bas_init_obj.bl_cccd_wr_sec   = SEC_MITM;
-    bas_init_obj.bl_report_rd_sec = SEC_MITM;
+    if (settings_get_ble_pairing_enable_first_load()) {
+        bas_init_obj.bl_rd_sec        = SEC_MITM;
+        bas_init_obj.bl_cccd_wr_sec   = SEC_MITM;
+        bas_init_obj.bl_report_rd_sec = SEC_MITM;
+    } else {
+        bas_init_obj.bl_rd_sec        = SEC_OPEN;
+        bas_init_obj.bl_cccd_wr_sec   = SEC_OPEN;
+        bas_init_obj.bl_report_rd_sec = SEC_OPEN;
+    }
 
     err_code = ble_bas_init(&m_bas, &bas_init_obj);
     APP_ERROR_CHECK(err_code);
@@ -439,8 +445,13 @@ static void ble_evt_handler(ble_evt_t const *p_ble_evt, void *p_context) {
 
         case BLE_GAP_EVT_SEC_PARAMS_REQUEST:
             // Pairing not supported? No, is supported now, hahahaha...
-            // err_code = sd_ble_gap_sec_params_reply(m_conn_handle, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP, NULL, NULL);
-            // APP_ERROR_CHECK(err_code);
+            // But... the pairing is enable?
+            if (settings_get_ble_pairing_enable_first_load()) {
+                NRF_LOG_DEBUG("Pairing is enable, The BLE_GAP_EVT_SEC_PARAMS_REQUEST event is handled by the pairing manager.");
+            } else {
+                err_code = sd_ble_gap_sec_params_reply(m_conn_handle, BLE_GAP_SEC_STATUS_PAIRING_NOT_SUPP, NULL, NULL);
+                APP_ERROR_CHECK(err_code);
+            }
             break;
 
         case BLE_GAP_EVT_PASSKEY_DISPLAY: {
@@ -585,12 +596,14 @@ static void whitelist_set(pm_peer_id_list_skip_t skip) {
 /**@brief Function for starting advertising.
  */
 void advertising_start(bool erase_bonds) {
-    if (erase_bonds == true) {
-        delete_bonds_all();
+    if (erase_bonds == true && settings_get_ble_pairing_enable_first_load()) {
         // Advertising is started by PM_EVT_PEERS_DELETE_SUCCEEDED event.
+        // So we don't call `ble_advertising_start()` after `delete_bonds_all()`.
+        delete_bonds_all();
     } else {
-        whitelist_set(PM_PEER_ID_LIST_SKIP_NO_ID_ADDR);
-
+        if (settings_get_ble_pairing_enable_first_load()) {
+            whitelist_set(PM_PEER_ID_LIST_SKIP_NO_ID_ADDR);
+        }
         ret_code_t ret = ble_advertising_start(&m_advertising, BLE_ADV_MODE_FAST);
         APP_ERROR_CHECK(ret);
     }

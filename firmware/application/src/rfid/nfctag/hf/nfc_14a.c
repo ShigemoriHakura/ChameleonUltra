@@ -355,7 +355,7 @@ void nfc_tag_14a_tx_nbit(uint8_t data, uint32_t bits) {
 void nfc_tag_14a_tx_nbit_delay_window(uint8_t data, uint32_t bits) {
     m_is_responded = true;
     m_nfc_tx_buffer[0] = data;
-    NFC_14A_TX_BITS_CORE(bits, NRF_NFCT_FRAME_DELAY_MODE_WINDOWGRID);
+    NFC_14A_TX_BITS_CORE(bits, NRF_NFCT_FRAME_DELAY_MODE_WINDOW);
 }
 
 /**
@@ -617,7 +617,7 @@ void nfc_tag_14a_event_callback(nrfx_nfct_evt_t const *p_event) {
             g_is_tag_emulating = true;
             g_usb_led_marquee_enable = false;
 
-            set_slot_light_color(1);
+            set_slot_light_color(RGB_GREEN);
             TAG_FIELD_LED_ON()
 
             NRF_LOG_INFO("HF FIELD DETECTED");
@@ -644,7 +644,7 @@ void nfc_tag_14a_event_callback(nrfx_nfct_evt_t const *p_event) {
             TAG_FIELD_LED_OFF()
             m_tag_state_14a = NFC_TAG_STATE_14A_IDLE;
 
-            nfc_core_reset();
+            // nfc_core_reset();
 
             NRF_LOG_INFO("HF FIELD LOST");
             break;
@@ -661,7 +661,7 @@ void nfc_tag_14a_event_callback(nrfx_nfct_evt_t const *p_event) {
             break;
         }
         case NRFX_NFCT_EVT_RX_FRAMEEND: {
-            set_slot_light_color(1);
+            set_slot_light_color(RGB_GREEN);
             TAG_FIELD_LED_ON()
 
             // NRF_LOG_INFO("RX FRAMEEND.\n");

@@ -11,9 +11,10 @@
 #include "nrf_log_default_backends.h"
 NRF_LOG_MODULE_REGISTER();
 
-static settings_data_t config;
 
+static settings_data_t config;
 static uint16_t m_config_crc;
+static bool m_ble_pairing_enable_first_load_value;
 
 static void update_config_crc(void) {
     calc_14a_crc_lut((uint8_t *)&config, sizeof(config), (uint8_t *)&m_config_crc);
@@ -43,17 +44,22 @@ void settings_init_button_long_press_config(void) {
 
 // add on version4
 void settings_init_ble_connect_key_config(void) {
-    uint8_t p_key_u8[] = DEFAULT_BLE_CONNECT_KEY;
+    uint8_t p_key_u8[] = DEFAULT_BLE_PAIRING_KEY;
     settings_set_ble_connect_key(p_key_u8);
+}
+
+// add on version5
+void settings_init_ble_pairing_enable_config(void) {
+    config.ble_pairing_enable = false;
 }
 
 void settings_init_config(void) {
     settings_update_version_for_config();
-    // add on version1
-    config.animation_config = SettingsAnimationModeFull;
+    config.animation_config = SettingsAnimationModeFull; // add on version1
     settings_init_button_press_config();
     settings_init_button_long_press_config();
     settings_init_ble_connect_key_config();
+    settings_init_ble_pairing_enable_config();
 }
 
 void settings_migrate(void) {
@@ -71,6 +77,9 @@ void settings_migrate(void) {
         case 3:
             settings_init_ble_connect_key_config();
 
+        case 4:
+            settings_init_ble_pairing_enable_config();
+
             /*
              * Add new migration steps ABOVE THIS COMMENT
              * `settings_update_version_for_config()` and `break` statements should only be used on the last migration step, all the previous steps must fall
@@ -86,7 +95,8 @@ void settings_migrate(void) {
 }
 
 void settings_load_config(void) {
-    bool ret = fds_read_sync(FDS_SETTINGS_FILE_ID, FDS_SETTINGS_RECORD_KEY, sizeof(config), (uint8_t *)&config);
+    uint16_t length = sizeof(config);
+    bool ret = fds_read_sync(FDS_SETTINGS_FILE_ID, FDS_SETTINGS_RECORD_KEY, &length, (uint8_t *)&config);
     if (ret) {
         NRF_LOG_INFO("Load config done.");
         // After the reading is complete, we first save a copy of the current CRC, which can be used as a reference for comparison of changes when saving later
@@ -106,6 +116,9 @@ void settings_load_config(void) {
     if (config_did_change()) {
         settings_save_config();
     }
+
+    // Assign values only after the first configuration load.
+    m_ble_pairing_enable_first_load_value = config.ble_pairing_enable;
 }
 
 uint8_t settings_save_config(void) {
@@ -264,5 +277,17 @@ uint8_t *settings_get_ble_connect_key(void) {
  * @param key Ble connect key for your device
  */
 void settings_set_ble_connect_key(uint8_t *key) {
-    memcpy(config.ble_connect_key, key, BLE_CONNECT_KEY_LEN_MAX);
+    memcpy(config.ble_connect_key, key, BLE_PAIRING_KEY_LEN);
+}
+
+void settings_set_ble_pairing_enable(bool enable) {
+    config.ble_pairing_enable = enable;
+}
+
+bool settings_get_ble_pairing_enable(void) {
+    return config.ble_pairing_enable;
+}
+
+bool settings_get_ble_pairing_enable_first_load(void) {
+    return m_ble_pairing_enable_first_load_value;
 }

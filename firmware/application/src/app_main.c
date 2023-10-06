@@ -250,7 +250,7 @@ static void system_off_enter(void) {
     if (g_is_low_battery_shutdown) {
         // Don't create too complex animations, just blink LED1 three times.
         rgb_marquee_stop();
-        set_slot_light_color(0);
+        set_slot_light_color(RGB_RED);
         for (uint8_t i = 0; i <= 3; i++) {
             nrf_gpio_pin_set(LED_1);
             bsp_delay_ms(100);
@@ -500,7 +500,7 @@ static void check_wakeup_src(void) {
         if (nrfx_power_usbstatus_get() != NRFX_POWER_USB_STATE_DISCONNECTED) {
             NRF_LOG_INFO("USB Power found.");
             // usb plugged in can broadcast BLE at will
-            advertising_start(true);
+            advertising_start(false);
         } else {
             sleep_timer_start(SLEEP_DELAY_MS_FIRST_POWER); // Wait a while and go straight to hibernation, do nothing
         }
@@ -530,6 +530,35 @@ static void cycle_slot(bool dec) {
     light_up_by_slot();
     // Then switch the color of the light again
     set_slot_light_color(color_new);
+}
+
+static void show_battery(void) {
+    uint32_t *led_pins = hw_get_led_array();
+    // if still in the first 4s after boot, blink red while waiting for battery info
+    while (percentage_batt_lvl == 0) {
+        for (int i = 0; i < RGB_LIST_NUM; i++) {
+            nrf_gpio_pin_clear(led_pins[i]);
+        }
+        bsp_delay_ms(100);
+        set_slot_light_color(RGB_RED);
+        for (int i = 0; i < RGB_LIST_NUM; i++) {
+            nrf_gpio_pin_set(led_pins[i]);
+        }
+        bsp_delay_ms(100);
+    }
+    // ok we have data, show level with cyan LEDs
+    for (int i = 0; i < RGB_LIST_NUM; i++) {
+        nrf_gpio_pin_clear(led_pins[i]);
+    }
+    set_slot_light_color(RGB_CYAN);
+    uint8_t nleds = (percentage_batt_lvl * 2) / 25; // 0->7 (8 for 100% but this is ignored)
+    for (int i = 0; i < RGB_LIST_NUM; i++) {
+        if (i <= nleds) {
+            nrf_gpio_pin_set(led_pins[i]);
+            bsp_delay_ms(50);
+        }
+    }
+    // nothing special to finish, we wait for sleep or slot change
 }
 
 #if defined(PROJECT_CHAMELEON_ULTRA)
@@ -570,8 +599,8 @@ static void btn_fn_copy_ic_uid(void) {
     uint8_t id_buffer[5] = { 0x00 };
     // get 14a tag res buffer;
     uint8_t slot_now = tag_emulation_get_slot();
-    tag_specific_type_t tag_type[2];
-    tag_emulation_get_specific_type_by_slot(slot_now, tag_type);
+    tag_slot_specific_type_t tag_types;
+    tag_emulation_get_specific_types_by_slot(slot_now, &tag_types);
 
     nfc_tag_14a_coll_res_entity_t *antres;
 
@@ -584,7 +613,7 @@ static void btn_fn_copy_ic_uid(void) {
         NRF_LOG_INFO("Start reader mode to offline copy.")
     }
 
-    switch (tag_type[1]) {
+    switch (tag_types.tag_lf) {
         case TAG_TYPE_EM410X:
             status = PcdScanEM410X(id_buffer);
 
@@ -599,7 +628,7 @@ static void btn_fn_copy_ic_uid(void) {
                 offline_status_error();
             }
             break;
-        case TAG_TYPE_UNKNOWN:
+        case TAG_TYPE_UNDEFINED:
             // empty LF slot, nothing to do, move on to HF
             break;
         default:
@@ -607,8 +636,8 @@ static void btn_fn_copy_ic_uid(void) {
             offline_status_error();
     }
 
-    tag_data_buffer_t *buffer = get_buffer_by_tag_type(tag_type[0]);
-    switch (tag_type[0]) {
+    tag_data_buffer_t *buffer = get_buffer_by_tag_type(tag_types.tag_hf);
+    switch (tag_types.tag_hf) {
         case TAG_TYPE_MIFARE_Mini:
         case TAG_TYPE_MIFARE_1024:
         case TAG_TYPE_MIFARE_2048:
@@ -626,7 +655,7 @@ static void btn_fn_copy_ic_uid(void) {
             break;
         }
 
-        case TAG_TYPE_UNKNOWN:
+        case TAG_TYPE_UNDEFINED:
             // empty HF slot, nothing to do
             goto exit;
 
@@ -648,11 +677,15 @@ static void btn_fn_copy_ic_uid(void) {
     status = pcd_14a_reader_scan_auto(&tag);
     if (status == HF_TAG_OK) {
         // copy uid
+        antres->size = tag.uid_len;
         memcpy(antres->uid, tag.uid, tag.uid_len);
         // copy atqa
         memcpy(antres->atqa, tag.atqa, 2);
         // copy sak
         antres->sak[0] = tag.sak;
+        // copy ats
+        antres->ats.length = tag.ats_len;
+        memcpy(antres->ats.data, tag.ats, tag.ats_len);
         NRF_LOG_INFO("Offline HF uid copied")
         offline_status_ok();
     } else {
@@ -684,6 +717,9 @@ static void run_button_function_by_settings(settings_button_function_t sbf) {
             btn_fn_copy_ic_uid();
             break;
 #endif
+
+        case SettingsButtonShowBattery:
+            show_battery();
 
         default:
             NRF_LOG_ERROR("Unsupported button function")
@@ -754,19 +790,26 @@ static void blink_usb_led_status(void) {
 }
 
 static void lesc_event_process(void) {
-    ret_code_t err_code;
-    err_code = nrf_ble_lesc_request_handler();
-    APP_ERROR_CHECK(err_code);
+    if (settings_get_ble_pairing_enable_first_load()) {
+        ret_code_t err_code;
+        err_code = nrf_ble_lesc_request_handler();
+        APP_ERROR_CHECK(err_code);
+    }
 }
 
 static void ble_passkey_init(void) {
-    set_ble_connect_key(settings_get_ble_connect_key());
+    if (settings_get_ble_pairing_enable_first_load()) {
+        set_ble_connect_key(settings_get_ble_connect_key());
+    }
 }
 
 /**@brief Application main function.
  */
 int main(void) {
     hw_connect_init();        // Remember to initialize the pins first
+
+    fds_util_init();          // Initialize fds tool
+    settings_load_config();   // Load settings from flash
 
     init_leds();              // LED initialization
     log_init();               // Log initialization
@@ -781,12 +824,10 @@ int main(void) {
     bsp_timer_start();        // Start BSP TIMER and prepare it for processing business logic
     button_init();            // Button initialization for handling business logic
     sleep_timer_init();       // Soft timer initialization for hibernation
-    fds_util_init();          // Initialize fds tool package
     tag_emulation_init();     // Analog card initialization
     rgb_marquee_init();       // Light effect initialization
 
-    settings_load_config();   // Load settings from flash
-    ble_passkey_init();       // after settings loaded, we can init ble connect key.
+    ble_passkey_init();       // init ble connect key.
 
     // cmd callback register
     on_data_frame_complete(on_data_frame_received);

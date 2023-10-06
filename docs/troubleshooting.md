@@ -1,11 +1,21 @@
 # Hardware
 
+## Difficulties to get emulation working properly
+
+Try with waking up the Chameleon by pressing a button before presenting it to the reader. Try with keeping some 2-3 cm distance to the reader.
+
 ## Difficulties to get the LF working properly
 
 The LF antenna is on a second PCB attached to the main PCB via little screws which also serve as electric connection.
-It has reported that on some devices the electric connection is not good, some glue or resin residues mai interfere.
+It has reported that on some devices the electric connection is not good, some glue or resin residues may interfere.
 You can try to dismantle very gently the screws and PCB, clean them and put them back in place.
 Be very careful the screws have been reported to be quite fragile so be gentle with them!
+
+# BLE
+
+## Difficulties connecting using BLE
+
+On Android make sure your location is turned, as that allows for scanning of bluetooth devices.
 
 ## Difficulties to use BLE
 
@@ -18,17 +28,30 @@ Default BLE connect key(passkey) is `123456`
 
 # DFU
 
-## Communication issues between CLI and Chameleon
+## Error when attempting DFU upgrade with `nrfutil`
 
-For example, typical error when performing DFU upgrade:
 
 ```
 [00:00:00] ------   0% [id:9] Failed, [sdfu] [json.exception.type_error.302] type must be string, but is null
-Error: One or more program tasks failed
 ```
+or
+```
+[00:00:00] ------   0% [2/2 ...] Failed, [sdfu]
+```
+
+### Check permissions and ModemManager
 
 Check the serial port permissions and if under Linux, make sure ModemManager is not interfering with your Chameleon.
 The proposed [udev/rules.d file](../resource/driver/79-chameleon-usb-device-blacklist-dialout.rules) may help you (and add your user to the dialout group).
+
+### Check `hw_version` of your DFU package
+
+Another cause of this error is a mismatch between `hw_version` of the DFU package you want to use and your hardware. You can check it with the following command.
+
+```
+nrfutil nrf5sdk-tools pkg display my-dfu-file.zip |grep hw_version
+```
+`hw_version` must be equal to `0` for the Ultra and `1` for the Lite.
 
 # CLI tools compilation
 
@@ -63,5 +86,5 @@ pacman -S mingw-w64-x86_64-ninja --noconfirm
 
 ## InvalidException: Device unsupported cmd
 
-You need to update the firmware of you Chameleon.
+You need to update the firmware of your Chameleon.
 

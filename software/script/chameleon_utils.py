@@ -54,7 +54,6 @@ def expect_response(accepted_responses: Union[int, list[int]]):
         @wraps(func)
         def error_throwing_func(*args, **kwargs):
             ret = func(*args, **kwargs)
-
             if ret.status not in accepted_responses:
                 if ret.status in chameleon_status.Device and ret.status in chameleon_status.message:
                     raise UnexpectedResponseError(
@@ -63,7 +62,7 @@ def expect_response(accepted_responses: Union[int, list[int]]):
                     raise UnexpectedResponseError(
                         f"Unexpected response and unknown status {ret.status}")
 
-            return ret
+            return ret.data
 
         return error_throwing_func
 
@@ -86,6 +85,11 @@ class CLITree:
         self.fullname: str = fullname if fullname else name
         self.children: list[CLITree] = children if children else list()
         self.cls = cls
+        if self.help_text is None:
+            assert self.cls is not None
+            parser = self.cls().args_parser()
+            assert parser is not None
+            self.help_text = parser.description
 
     def subgroup(self, name, help_text=None):
         """
@@ -99,16 +103,15 @@ class CLITree:
         self.children.append(child)
         return child
 
-    def command(self, name, help_text=None):
+    def command(self, name):
         """
         Create a child command
 
         :param name: Name of the command
-        :param help_text: Hint displayed for the command
         """
         def decorator(cls):
             self.children.append(
-                CLITree(name=name, fullname=f'{self.fullname} {name}', help_text=help_text, cls=cls))
+                CLITree(name=name, fullname=f'{self.fullname} {name}', cls=cls))
             return cls
         return decorator
 
@@ -161,7 +164,7 @@ class CustomNestedCompleter(NestedCompleter):
         meta_dict = {}
 
         for child_node in node.children:
-            if child_node.cls and child_node.cls().args_parser():
+            if child_node.cls:
                 # CLITree is a standalone command with arguments
                 options[child_node.name] = ArgparseCompleter(
                     child_node.cls().args_parser())

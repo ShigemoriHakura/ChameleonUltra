@@ -9,9 +9,16 @@ import chameleon_utils
 import os
 import pathlib
 import prompt_toolkit
+from datetime import datetime
 from prompt_toolkit.formatted_text import ANSI
 from prompt_toolkit.history import FileHistory
 
+# Colorama shorthands
+CR = colorama.Fore.RED
+CG = colorama.Fore.GREEN
+CC = colorama.Fore.CYAN
+CY = colorama.Fore.YELLOW
+C0 = colorama.Style.RESET_ALL
 
 ULTRA = r"""
                                                                 ╦ ╦╦ ╔╦╗╦═╗╔═╗
@@ -34,6 +41,35 @@ BANNER = """
 ╚██████╗██║  ██║██║  ██║██║╚═╝██║███████╗███████╗███████╗╚█████╔╝██║╚███║
  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝   ╚═╝╚══════╝╚══════╝╚══════╝ ╚════╝ ╚═╝ ╚══╝
 """
+
+
+def dump_help(cmd_node, depth=0, dump_cmd_groups=False, dump_description=False):
+    if cmd_node.cls:
+        cmd_title = f"{CG}{cmd_node.fullname}{C0}"
+        if dump_description:
+            print(f" {cmd_title}".ljust(37) + f"{cmd_node.help_text}")
+        else:
+            print(f" {cmd_title}".ljust(37), end="")
+        p = cmd_node.cls().args_parser()
+        assert p is not None
+        p.prog = ""
+        usage = p.format_usage().removeprefix("usage: ").rstrip()
+        if usage != "[-h]":
+            usage = usage.removeprefix("[-h] ")
+            if dump_description:
+                print(f"{CG}{C0}".ljust(37), end="")
+            print(f"{CY}{usage}{C0}")
+        else:
+            print("")
+    else:
+        if dump_cmd_groups:
+            cmd_title = f"{CY}{cmd_node.fullname}{C0}"
+            if dump_description:
+                print(f" {cmd_title}".ljust(37) + f"{{ {cmd_node.help_text}... }}")
+            else:
+                print(f" {cmd_title}")
+        for child in cmd_node.children:
+            dump_help(child, depth + 1, dump_cmd_groups, dump_description)
 
 
 class ChameleonCLI:
@@ -74,9 +110,9 @@ class ChameleonCLI:
 
         :return: current cmd prompt
         """
-        device_string = f"{colorama.Fore.GREEN}USB" if self.device_com.isOpen(
-        ) else f"{colorama.Fore.RED}Offline"
-        status = f"[{device_string}{colorama.Style.RESET_ALL}] chameleon --> "
+        device_string = f"{CG}USB" if self.device_com.isOpen(
+        ) else f"{CR}Offline"
+        status = f"[{device_string}{C0}] chameleon --> "
         return status
 
     @staticmethod
@@ -85,7 +121,7 @@ class ChameleonCLI:
             print chameleon ascii banner
         :return:
         """
-        print(colorama.Fore.YELLOW + BANNER)
+        print(f"{CY}{BANNER}{C0}")
 
     def startCLI(self):
         """
@@ -121,20 +157,36 @@ class ChameleonCLI:
             elif cmd_str == "clear":
                 os.system('clear' if os.name == 'posix' else 'cls')
                 continue
+            elif cmd_str == "dumphelp":
+                for _, cmd_node in chameleon_cli_unit.root_commands.items():
+                    dump_help(cmd_node)
+                continue
             elif cmd_str == "":
                 continue
 
             # parse cmd
             argv = cmd_str.split()
             root_cmd = argv[0]
+            # look for comments
+            if root_cmd == "rem" or root_cmd[0] in ";#%":
+                # precision: second
+                # iso_timestamp = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+                # precision: nanosecond (note that the comment will take some time too, ~75ns, check your system)
+                iso_timestamp = datetime.utcnow().isoformat() + 'Z'
+                if root_cmd[0] in ";#%":
+                    comment = ' '.join([root_cmd[1:]]+argv[1:]).strip()
+                else:
+                    comment = ' '.join(argv[1:]).strip()
+                print(f"{iso_timestamp} remark: {comment}")
+                continue
             if root_cmd not in chameleon_cli_unit.root_commands:
                 # No matching command group
                 print("".ljust(18, "-") + "".ljust(10) + "".ljust(30, "-"))
                 for cmd_name, cmd_node in chameleon_cli_unit.root_commands.items():
-                    cmd_title = f"{colorama.Fore.GREEN}{cmd_name}{colorama.Style.RESET_ALL}"
-                    help_line = (f" - {cmd_title}".ljust(37)
-                                 ) + f"[ {cmd_node.help_text} ]"
-                    print(help_line)
+                    print(f" - {CG}{cmd_name}{C0}".ljust(37) + f"{{ {cmd_node.help_text}... }}")
+                print(f" - {CG}clear{C0}".ljust(37) + "Clear screen")
+                print(f" - {CG}exit{C0}".ljust(37) + "Exit program")
+                print(f" - {CG}rem ...{C0}".ljust(37) + "Display a comment with a timestamp")
                 continue
 
             tree_node, arg_list = self.get_cmd_node(
@@ -144,9 +196,13 @@ class ChameleonCLI:
                 # Found tree node is a group without an implementation, print children
                 print("".ljust(18, "-") + "".ljust(10) + "".ljust(30, "-"))
                 for child in tree_node.children:
-                    cmd_title = f"{colorama.Fore.GREEN}{child.name}{colorama.Style.RESET_ALL}"
-                    help_line = (f" - {cmd_title}".ljust(37)
-                                 ) + f"[ {child.help_text} ]"
+                    cmd_title = f"{CG}{child.name}{C0}"
+                    if not child.cls:
+                        help_line = (f" - {cmd_title}".ljust(37)
+                                     ) + f"{{ {child.help_text}... }}"
+                    else:
+                        help_line = (f" - {cmd_title}".ljust(37)
+                                     ) + f"{child.help_text}"
                     print(help_line)
                 continue
 
@@ -154,18 +210,18 @@ class ChameleonCLI:
             unit.device_com = self.device_com
             args_parse_result = unit.args_parser()
 
-            if args_parse_result is not None:
-                args: argparse.ArgumentParser = args_parse_result
-                args.prog = tree_node.fullname
-                try:
-                    args_parse_result = args.parse_args(arg_list)
-                except chameleon_utils.ArgsParserError as e:
-                    args.print_usage()
-                    print(str(e).strip(), end="\n\n")
-                    continue
-                except chameleon_utils.ParserExitIntercept:
-                    # don't exit process.
-                    continue
+            assert args_parse_result is not None
+            args: argparse.ArgumentParser = args_parse_result
+            args.prog = tree_node.fullname
+            try:
+                args_parse_result = args.parse_args(arg_list)
+            except chameleon_utils.ArgsParserError as e:
+                args.print_usage()
+                print(str(e).strip(), end="\n\n")
+                continue
+            except chameleon_utils.ParserExitIntercept:
+                # don't exit process.
+                continue
             try:
                 # before process cmd, we need to do something...
                 if not unit.before_exec(args_parse_result):
@@ -174,10 +230,10 @@ class ChameleonCLI:
                 # start process cmd
                 unit.on_exec(args_parse_result)
             except (chameleon_utils.UnexpectedResponseError, chameleon_utils.ArgsParserError) as e:
-                print(f"{colorama.Fore.RED}{str(e)}{colorama.Style.RESET_ALL}")
+                print(f"{CR}{str(e)}{C0}")
             except Exception:
                 print(
-                    f"CLI exception: {colorama.Fore.RED}{traceback.format_exc()}{colorama.Style.RESET_ALL}")
+                    f"CLI exception: {CR}{traceback.format_exc()}{C0}")
 
 
 if __name__ == '__main__':
