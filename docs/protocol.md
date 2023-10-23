@@ -50,7 +50,7 @@ E.g. LRC3(DATA) == LRC3(whole frame)
 
 Each command and response have their own payload formats.
 
-Standard response status is `STATUS_DEVICE_SUCCESS` for general commands, `HF_TAG_OK` for HF commands and `LF_TAG_OK` for LF commands.
+Standard response status is `STATUS_SUCCESS` for general commands, `STATUS_HF_TAG_OK` for HF commands and `STATUS_LF_TAG_OK` for LF commands.
 See [Guidelines](#new-data-payloads-guidelines-for-developers) for more info.
 
 Beware, slots in protocol count from 0 to 7 (and from 1 to 8 in the CLI...).
@@ -64,11 +64,11 @@ In the following list, "CLI" refers to one typical CLI command using the describ
 ### 1001: CHANGE_DEVICE_MODE
 * Command: 1 byte. `0x00`=emulator mode, `0x01`=reader mode
 * Response: no data
-* CLI: cf `hw mode set`
+* CLI: cf `hw mode`
 ### 1002: GET_DEVICE_MODE
 * Command: no data
 * Response: data: 1 byte. `0x00`=emulator mode, `0x01`=reader mode
-* CLI: cf `hw mode get`
+* CLI: cf `hw mode`
 ### 1003: SET_ACTIVE_SLOT
 * Command: 1 byte. `slot_number` between 0 and 7
 * Response: no data
@@ -84,19 +84,19 @@ In the following list, "CLI" refers to one typical CLI command using the describ
 ### 1006: SET_SLOT_ENABLE
 * Command: 3 bytes. `slot_number|sense_type|enable` with `slot_number` between 0 and 7, `sense_type` according to `tag_sense_type_t` enum and `enable` = `0x01` to enable, `0x00` to disable
 * Response: no data
-* CLI: cf `hw slot enable`
+* CLI: cf `hw slot enable`/`hw slot disable`
 ### 1007: SET_SLOT_TAG_NICK
 * Command: 2+N bytes. `slot_number|sense_type|name[N]` with `slot_number` between 0 and 7, `sense_type` according to `tag_sense_type_t` enum and `name` a UTF-8 encoded string of max 32 bytes, no null terminator.
 * Response: no data
-* CLI: cf `hw slot nick set`
+* CLI: cf `hw slot nick`
 ### 1008: GET_SLOT_TAG_NICK
 * Command: 2 bytes. `slot_number|sense_type` with `slot_number` between 0 and 7 and `sense_type` according to `tag_sense_type_t` enum.
 * Response: a UTF-8 encoded string of max 32 bytes, no null terminator. If no nick name has been recorded in Flash, response status is `STATUS_FLASH_READ_FAIL`.
-* CLI: cf `hw slot nick get`
+* CLI: cf `hw slot nick`
 ### 1009: SLOT_DATA_CONFIG_SAVE
 * Command: no data
 * Response: no data
-* CLI: cf `hw slot update`
+* CLI: cf `hw slot store`
 ### 1010: ENTER_BOOTLOADER
 * Command: no data
 * Response: this special command does not return and will interrupt the communication link while rebooting in bootloader mode, needed for DFU.
@@ -104,11 +104,11 @@ In the following list, "CLI" refers to one typical CLI command using the describ
 ### 1011: GET_DEVICE_CHIP_ID
 * Command: no data
 * Response: 8 bytes. nRF `DEVICEID[8]` U64 in Network byte order.
-* CLI: cf `hw chipid get`
+* CLI: cf `hw chipid`
 ### 1012: GET_DEVICE_ADDRESS
 * Command: no data
 * Response: 6 bytes. nRF `DEVICEADDR[6]` U48 in Network byte order. First 2 MSBits forced to `0b11` to match BLE static address.
-* CLI: cf `hw address get`
+* CLI: cf `hw address`
 ### 1013: SAVE_SETTINGS
 * Command: no data
 * Response: no data
@@ -120,17 +120,17 @@ In the following list, "CLI" refers to one typical CLI command using the describ
 ### 1015: SET_ANIMATION_MODE
 * Command: 1 byte, according to `settings_animation_mode_t` enum.
 * Response: no data
-* CLI: cf `hw settings animation set`
+* CLI: cf `hw settings animation`
 ### 1016: GET_ANIMATION_MODE
 * Command: no data
 * Response: 1 byte, according to `settings_animation_mode_t` enum.
-* CLI: cf `hw settings animation get`
+* CLI: cf `hw settings animation`
 ### 1017: GET_GIT_VERSION
 * Command: no data
 * Response: n bytes, a UTF-8 encoded string, no null terminator.
 * CLI: cf `hw version`
 
-Notes: the returned string is the output of `git describe --abbrev=7 --dirty --always --tags` so, depending on the status of the repo it can be
+Notes: the returned string is the output of `git describe --abbrev=7 --dirty --always --tags --match "v*.*"` so, depending on the status of the repo it can be
 * a short tag, e.g. `v2.0.0` if the firmware is built from the tagged commit
 * a longer tag indicating how far it is from the latest tag and 7 nibbles of its commit hash, prepended with `g`, e.g. 5 commits away from v2.0.0: `v2.0.0-5-g617d6d0`
 * a long tag finishing with `-dirty` if the local repo contains changes not yet committed, e.g. `v2.0.0-5-g617d6d0-dirty`
@@ -144,19 +144,20 @@ Notes: the returned string is the output of `git describe --abbrev=7 --dirty --a
 * CLI: cf `hw slot list`
 ### 1020: WIPE_FDS
 * Command: no data
-* Response: no data. Status is `STATUS_DEVICE_SUCCESS` or `STATUS_FLASH_WRITE_FAIL`. The device will reboot shortly after this command.
+* Response: no data. Status is `STATUS_SUCCESS` or `STATUS_FLASH_WRITE_FAIL`. The device will reboot shortly after this command.
 * CLI: cf `hw factory_reset`
 ### 1021: DELETE_SLOT_TAG_NICK
 * Command: 2 bytes. `slot_number|sense_type` with `slot_number` between 0 and 7 and `sense_type` according to `tag_sense_type_t` enum.
 * Response: no data
-* CLI: cf `hw slot nick delete`
+* CLI: cf `hw slot nick`
 ### 1023: GET_ENABLED_SLOTS
 * Command: no data
 * Response: 16 bytes, 8*2 bool = `0x00` or `0x01`, 2 bytes for each slot from 0 to 7, as `enabled_hf|enabled_lf`
+* CLI: cf `hw slot list`
 ### 1024: DELETE_SLOT_SENSE_TYPE
 * Command: 2 bytes. `slot_number|sense_type` with `slot_number` between 0 and 7 and `sense_type` according to `tag_sense_type_t` enum.
 * Response: no data
-* CLI: cf `hw factory_reset`
+* CLI: cf `hw slot delete`
 ### 1025: GET_BATTERY_INFO
 * Command: no data
 * Response: 3 bytes, `voltage[2]|percentage`. Voltage: U16  in Network byte order.
@@ -166,19 +167,19 @@ Notes: wait about 5 seconds after wake-up, before querying the battery status, e
 ### 1026: GET_BUTTON_PRESS_CONFIG
 * Command: 1 byte. Char `A` or `B` (`a`/`b` tolerated too)
 * Response: 1 byte, `button_function` according to `settings_button_function_t` enum.
-* CLI: cf `hw settings btnpress get`
+* CLI: cf `hw settings btnpress`
 ### 1027: SET_BUTTON_PRESS_CONFIG
 * Command: 2 bytes. `button|button_function` with `button` char `A` or `B` (`a`/`b` tolerated too) and `button_function` according to `settings_button_function_t` enum.
 * Response: no data
-* CLI: cf `hw settings btnpress set`
+* CLI: cf `hw settings btnpress`
 ### 1028: GET_LONG_BUTTON_PRESS_CONFIG
 * Command: 1 byte. Char `A` or `B` (`a`/`b` tolerated too)
 * Response: 1 byte, `button_function` according to `settings_button_function_t` enum.
-* CLI: cf `hw settings btnpress get`
+* CLI: cf `hw settings btnpress`
 ### 1029: SET_LONG_BUTTON_PRESS_CONFIG
 * Command: 2 bytes. `button|button_function` with `button` char `A` or `B` (`a`/`b` tolerated too) and `button_function` according to `settings_button_function_t` enum.
 * Response: no data
-* CLI: cf `hw settings btnpress set`
+* CLI: cf `hw settings btnpress`
 ### 1030: SET_BLE_PAIRING_KEY
 * Command: 6 bytes. 6 ASCII-encoded digits.
 * Response: no data
@@ -190,7 +191,7 @@ Notes: wait about 5 seconds after wake-up, before querying the battery status, e
 ### 1032: DELETE_ALL_BLE_BONDS
 * Command: no data
 * Response: no data
-* CLI: cf `hw ble bonds clear`
+* CLI: cf `hw settings bleclearbonds`
 ### 1033: GET_DEVICE_MODEL
 * Command: no data
 * Response: 1 byte. `hw_version` aka `NRF_DFU_HW_VERSION` according to `chameleon_device_type_t` enum (0=Ultra, 1=Lite)
@@ -225,7 +226,7 @@ Notes: wait about 5 seconds after wake-up, before querying the battery status, e
 * CLI: cf `hf 14a scan`
 
 Notes:
-* remind that if no tag is present, status will be `HF_TAG_NO` and Response empty.
+* remind that if no tag is present, status will be `STATUS_HF_TAG_NO` and Response empty.
 * at the moment, the firmware supports only one tag, but get your client ready for more!
 * `atslen` must not be confused with `ats[0]`==`TL`. So `atslen|ats` = `00` means no ATS while `0100` would be an empty ATS.
 ### 2001: MF1_DETECT_SUPPORT
@@ -241,7 +242,7 @@ Notes:
 * Response: 4+N*8 bytes: `uid[4]` followed by N tuples of `nt[4]|nt_enc[4]`. All values as U32.
 * CLI: cf `hf mf nested` on static nonce tag
 ### 2004: MF1_DARKSIDE_ACQUIRE
-* Command: 4 bytes: `type_target|block_target|first_recover|sync_max`
+* Command: 4 bytes: `type_target|block_target|first_recover|sync_max`. Type=0x60 for key A, 0x61 for key B.
 * Response: 1 byte if Darkside failed, according to `mf1_darkside_status_t` enum,
   else 33 bytes `darkside_status|uid[4]|nt1[4]|par[8]|ks1[8]|nr[4]|ar[4]`
   * `darkside_status`
@@ -253,29 +254,29 @@ Notes:
   * `ar[4]` U32
 * CLI: cf `hf mf darkside`
 ### 2005: MF1_DETECT_NT_DIST
-* Command: 8 bytes: `type_known|block_known|key_known[6]`. Key as 6 bytes.
+* Command: 8 bytes: `type_known|block_known|key_known[6]`. Key as 6 bytes. Type=0x60 for key A, 0x61 for key B.
 * Response: 8 bytes: `uid[4]|dist[4]`
   * `uid[4]` U32 (format expected by `nested` tool)
   * `dist[4]` U32
 * CLI: cf `hf mf nested`
 ### 2006: MF1_NESTED_ACQUIRE
-* Command: 10 bytes: `type_known|block_known|key_known[6]|type_target|block_target`. Key as 6 bytes.
+* Command: 10 bytes: `type_known|block_known|key_known[6]|type_target|block_target`. Key as 6 bytes. Type=0x60 for key A, 0x61 for key B.
 * Response: N*9 bytes: N tuples of `nt[4]|nt_enc[4]|par`
   * `nt[4]` U32
   * `nt_enc[4]` U32
   * `par`
 * CLI: cf `hf mf nested`
 ### 2007: MF1_AUTH_ONE_KEY_BLOCK
-* Command: 8 bytes: `type|block|key[6]`. Key as 6 bytes.
+* Command: 8 bytes: `type|block|key[6]`. Key as 6 bytes. Type=0x60 for key A, 0x61 for key B.
 * Response: no data
-* Status will be `HF_TAG_OK` if auth succeeded, else `MF_ERR_AUTH`
+* Status will be `STATUS_HF_TAG_OK` if auth succeeded, else `STATUS_MF_ERR_AUTH`
 * CLI: cf `hf mf nested`
 ### 2008: MF1_READ_ONE_BLOCK
-* Command: 8 bytes: `type|block|key[6]`. Key as 6 bytes.
+* Command: 8 bytes: `type|block|key[6]`. Key as 6 bytes. Type=0x60 for key A, 0x61 for key B.
 * Response: 16 bytes: `block_data[16]`
 * CLI: cf `hf mf rdbl`
 ### 2009: MF1_WRITE_ONE_BLOCK
-* Command: 24 bytes: `type|block|key[6]|block_data[16]`. Key as 6 bytes.
+* Command: 24 bytes: `type|block|key[6]|block_data[16]`. Key as 6 bytes. Type=0x60 for key A, 0x61 for key B.
 * Response: no data
 * CLI: cf `hf mf wrbl`
 ### 2010: HF14A_RAW
@@ -292,11 +293,11 @@ Notes:
 ### 3000: EM410X_SCAN
 * Command: no data
 * Response: 5 bytes. `id[5]`. ID as 5 bytes.
-* CLI: cf `lf em read`
+* CLI: cf `lf em 410x read`
 ### 3001: EM410X_WRITE_TO_T55XX
 * Command: 9+N*4 bytes: `id[5]|new_key[4]|old_key1[4]|old_key2[4]|...` (N>=1). . ID as 5 bytes. Keys as 4 bytes.
 * Response: no data
-* CLI: cf `lf em write`
+* CLI: cf `lf em 410x write`
 ### 4000: MF1_WRITE_EMU_BLOCK_DATA
 * Command: 1+N*16 bytes: `block_start|block_data1[16]|block_data2[16]|...` (1<=N<=31)
 * Response: no data
@@ -304,15 +305,15 @@ Notes:
 ### 4001: HF14A_SET_ANTI_COLL_DATA
 * Command: N bytes: `uidlen|uid[uidlen]|atqa[2]|sak|atslen|ats[atslen]`. UID, ATQA, SAK and ATS as bytes.
 * Response: no data
-* CLI: cf `hf mf sim`
+* CLI: cf `hf mf econfig`/`hf mfu econfig`
 ### 4004: MF1_SET_DETECTION_ENABLE
 * Command: 1 byte, bool = `0x00` or `0x01`
 * Response: no data
-* CLI: cf `hf detection enable`
+* CLI: cf `hf mf econfig`
 ### 4005: MF1_GET_DETECTION_COUNT
 * Command: no data
 * Response: 4 bytes, `count[4]`, U32 in Network byte order.
-* CLI: cf `hf detection count`
+* CLI: cf `hf mf elog`
 ### 4006: MF1_GET_DETECTION_LOG
 * Command: 4 bytes, `index`, U32 in Network byte order.
 * Response: N*18 bytes. 0<=N<=28
@@ -322,7 +323,7 @@ Notes:
   * `nt[4]`  ?
   * `nr[4]` ?
   * `ar[4]` ?
-* CLI: cf `hf detection decrypt`
+* CLI: cf `hf mf elog`
 ### 4007: MF1_GET_DETECTION_ENABLE
 * Command: no data
 * Response: 1 byte, bool = `0x00` or `0x01`
@@ -339,7 +340,7 @@ Notes:
   * `gen2_mode`, cf [MF1_GET_GEN2_MODE](#4012-mf1_get_gen2_mode)
   * `block_anti_coll_mode`, cf [MF1_GET_BLOCK_ANTI_COLL_MODE](#4014-mf1_get_block_anti_coll_mode)
   * `write_mode`, cf [MF1_GET_WRITE_MODE](#4016-mf1_get_write_mode)
-* CLI: cf `hw slot list`
+* CLI: cf `hf mf econfig`
 ### 4010: MF1_GET_GEN1A_MODE
 * Command: no data
 * Response: 1 byte, bool = `0x00` or `0x01`
@@ -347,7 +348,7 @@ Notes:
 ### 4011: MF1_SET_GEN1A_MODE
 * Command: 1 byte, bool = `0x00` or `0x01`
 * Response: no data
-* CLI: cf `hf mf settings`
+* CLI: cf `hf mf econfig`
 ### 4012: MF1_GET_GEN2_MODE
 * Command: no data
 * Response: 1 byte, bool = `0x00` or `0x01`
@@ -355,7 +356,7 @@ Notes:
 ### 4013: MF1_SET_GEN2_MODE
 * Command: 1 byte, bool = `0x00` or `0x01`
 * Response: no data
-* CLI: cf `hf mf settings`
+* CLI: cf `hf mf econfig`
 ### 4014: MF1_GET_BLOCK_ANTI_COLL_MODE
 * Command: no data
 * Response: 1 byte, bool = `0x00` or `0x01`
@@ -363,7 +364,7 @@ Notes:
 ### 4015: MF1_SET_BLOCK_ANTI_COLL_MODE
 * Command: 1 byte, bool = `0x00` or `0x01`
 * Response: no data
-* CLI: cf `hf mf settings`
+* CLI: cf `hf mf econfig`
 ### 4016: MF1_GET_WRITE_MODE
 * Command: no data
 * Response: 1 byte, according to `nfc_tag_mf1_write_mode_t` aka `MifareClassicWriteMode` enum
@@ -371,19 +372,19 @@ Notes:
 ### 4017: MF1_SET_WRITE_MODE
 * Command: 1 byte, according to `nfc_tag_mf1_write_mode_t` aka `MifareClassicWriteMode` enum
 * Response: no data
-* CLI: cf `hf mf settings`
+* CLI: cf `hf mf econfig`
 ### 4018: HF14A_GET_ANTI_COLL_DATA
 * Command: no data
 * Response: no data or N bytes: `uidlen|uid[uidlen]|atqa[2]|sak|atslen|ats[atslen]`. UID, ATQA, SAK and ATS as bytes.
-* CLI: cf `hf mf info`
+* CLI: cf `hw slot list`/`hf mf econfig`/`hf mfu econfig`
 ### 5000: EM410X_SET_EMU_ID
 * Command: 5 bytes. `id[5]`. ID as 5 bytes.
 * Response: no data
-* CLI: cf `lf em sim set`
+* CLI: cf `lf em 410x econfig`
 ### 5001: EM410X_GET_EMU_ID
 * Command: no data
 * Response: 5 bytes. `id[5]`. ID as 5 bytes.
-* CLI: cf `lf em sim get`
+* CLI: cf `lf em 410x econfig`
 
 ## New data payloads: guidelines for developers
 
@@ -396,7 +397,7 @@ Be verbose, explicit and reuse conventions, in order to enhance code maintainabi
 - Avoid hardcoding offsets, use `sizeof()`, `offsetof(struct, field)` in C and `struct.calcsize()` in Python
 - For complex bitfield structs, exceptionally you can use ctypes in Python. Beware ctypes.BigEndianStructure bitfield will be parsed in the firmware in the reverse order, from LSB to MSB.
 ### Guideline: Status
-If single byte of data to return, still use a 1-byte `data`, not `status`. Standard response status is `STATUS_DEVICE_SUCCESS` for general commands, `HF_TAG_OK` for HF commands and `LF_TAG_OK` for LF commands. If the response status is different than those, the response data is empty. Response status are generic and cover things like tag disappearance or tag non-conformities with the ISO standard. If a command needs more specific response status, it is added in the first byte of the data, to avoid cluttering the 1-byte general status enum with command-specific statuses. See e.g. [MF1_DARKSIDE_ACQUIRE](#2004-mf1_darkside_acquire).
+If single byte of data to return, still use a 1-byte `data`, not `status`. Standard response status is `STATUS_SUCCESS` for general commands, `STATUS_HF_TAG_OK` for HF commands and `STATUS_LF_TAG_OK` for LF commands. If the response status is different than those, the response data is empty. Response status are generic and cover things like tag disappearance or tag non-conformities with the ISO standard. If a command needs more specific response status, it is added in the first byte of the data, to avoid cluttering the 1-byte general status enum with command-specific statuses. See e.g. [MF1_DARKSIDE_ACQUIRE](#2004-mf1_darkside_acquire).
 ### Guideline: unambiguous types
 - Use unambiguous types such as `uint16_t`, not `int` or `enum`. Cast explicitly `int` and `enum` to `uint_t` of proper size
 - Use Network byte order for 16b and 32b integers
