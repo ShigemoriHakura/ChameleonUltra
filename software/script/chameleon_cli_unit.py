@@ -10,6 +10,7 @@ from datetime import datetime
 import serial.tools.list_ports
 import threading
 import struct
+from typing import Union
 from pathlib import Path
 from platform import uname
 
@@ -17,7 +18,7 @@ import chameleon_com
 import chameleon_cmd
 from chameleon_utils import ArgumentParserNoExit, ArgsParserError, UnexpectedResponseError
 from chameleon_utils import CLITree
-from chameleon_utils import CR, CG, CB, CC, CY, CM, C0
+from chameleon_utils import CR, CG, CB, CC, CY, C0
 from chameleon_enum import Command, Status, SlotNumber, TagSenseType, TagSpecificType
 from chameleon_enum import MifareClassicWriteMode, MifareClassicPrngType, MifareClassicDarksideStatus, MfcKeyType
 from chameleon_enum import AnimationMode, ButtonType, ButtonPressFunction
@@ -36,12 +37,7 @@ type_id_SAK_dict = {0x00: "MIFARE Ultralight Classic/C/EV1/Nano | NTAG 2xx",
                     0x38: "SmartMX with MIFARE Classic 4K",
                     }
 
-if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-    # in pyinstaller
-    default_cwd = Path.cwd() / Path(sys._MEIPASS) / "bin"
-else:
-    # from source
-    default_cwd = Path.cwd() / Path(__file__).parent.parent / "bin"
+default_cwd = Path.cwd() / Path(__file__).with_name("bin")
 
 
 def check_tools():
@@ -57,11 +53,12 @@ def check_tools():
 class BaseCLIUnit:
     def __init__(self):
         # new a device command transfer and receiver instance(Send cmd and receive response)
-        self._device_com: chameleon_com.ChameleonCom | None = None
-        self._device_cmd: chameleon_cmd.ChameleonCMD = chameleon_cmd.ChameleonCMD(self._device_com)
+        self._device_com: Union[chameleon_com.ChameleonCom, None] = None
+        self._device_cmd: Union[chameleon_cmd.ChameleonCMD, None] = None
 
     @property
     def device_com(self) -> chameleon_com.ChameleonCom:
+        assert self._device_com is not None
         return self._device_com
 
     @device_com.setter
@@ -71,11 +68,13 @@ class BaseCLIUnit:
 
     @property
     def cmd(self) -> chameleon_cmd.ChameleonCMD:
+        assert self._device_cmd is not None
         return self._device_cmd
 
     def args_parser(self) -> ArgumentParserNoExit:
         """
-            CMD unit args
+            CMD unit args.
+
         :return:
         """
         raise NotImplementedError("Please implement this")
@@ -83,13 +82,15 @@ class BaseCLIUnit:
     def before_exec(self, args: argparse.Namespace):
         """
             Call a function before exec cmd.
+
         :return: function references
         """
         return True
 
     def on_exec(self, args: argparse.Namespace):
         """
-            Call a function on cmd match
+            Call a function on cmd match.
+
         :return: function references
         """
         raise NotImplementedError("Please implement this")
@@ -97,6 +98,7 @@ class BaseCLIUnit:
     def after_exec(self, args: argparse.Namespace):
         """
             Call a function after exec cmd.
+
         :return: function references
         """
         return True
@@ -113,6 +115,7 @@ class BaseCLIUnit:
 
             def thread_read_output(self):
                 while self._process.poll() is None:
+                    assert self._process.stdout is not None
                     data = self._process.stdout.read(1024)
                     if len(data) > 0:
                         self.output += data.decode(encoding="utf-8")
@@ -388,6 +391,7 @@ lf = root.subgroup('lf', 'Low Frequency commands')
 lf_em = lf.subgroup('em', 'EM commands')
 lf_em_410x = lf_em.subgroup('410x', 'EM410x commands')
 
+
 @root.command('clear')
 class RootClear(BaseCLIUnit):
     def args_parser(self) -> ArgumentParserNoExit:
@@ -521,6 +525,17 @@ class HWConnect(BaseCLIUnit):
             self.device_com.close()
 
 
+@hw.command('disconnect')
+class HWDisconnect(BaseCLIUnit):
+    def args_parser(self) -> ArgumentParserNoExit:
+        parser = ArgumentParserNoExit()
+        parser.description = 'Disconnect chameleon'
+        return parser
+
+    def on_exec(self, args: argparse.Namespace):
+        self.device_com.close()
+
+
 @hw.command('mode')
 class HWMode(DeviceRequiredUnit):
     def args_parser(self) -> ArgumentParserNoExit:
@@ -635,7 +650,7 @@ class HF14AInfo(ReaderRequiredUnit):
     def on_exec(self, args: argparse.Namespace):
         scan = HF14AScan()
         scan.device_com = self.device_com
-        scan.scan(deep=1)
+        scan.scan(deep=True)
 
 
 @hf_mf.command('nested')
@@ -665,9 +680,10 @@ class HFMFNested(ReaderRequiredUnit):
         if nt_level == 2:
             return 'HardNested'
 
-    def recover_a_key(self, block_known, type_known, key_known, block_target, type_target) -> str or None:
+    def recover_a_key(self, block_known, type_known, key_known, block_target, type_target) -> Union[str, None]:
         """
-            recover a key from key known
+            recover a key from key known.
+
         :param block_known:
         :param type_known:
         :param key_known:
@@ -689,7 +705,7 @@ class HFMFNested(ReaderRequiredUnit):
             cmd_param = f"{nt_uid_obj['uid']} {str(type_target)}"
             for nt_item in nt_uid_obj['nts']:
                 cmd_param += f" {nt_item['nt']} {nt_item['nt_enc']}"
-            decryptor_name = "staticnested"
+            tool_name = "staticnested"
         else:
             dist_obj = self.cmd.mf1_detect_nt_dist(block_known, type_known, key_known)
             nt_obj = self.cmd.mf1_nested_acquire(block_known, type_known, key_known, block_target, type_target)
@@ -697,13 +713,13 @@ class HFMFNested(ReaderRequiredUnit):
             cmd_param = f"{dist_obj['uid']} {dist_obj['dist']}"
             for nt_item in nt_obj:
                 cmd_param += f" {nt_item['nt']} {nt_item['nt_enc']} {nt_item['par']}"
-            decryptor_name = "nested"
+            tool_name = "nested"
 
         # Cross-platform compatibility
         if sys.platform == "win32":
-            cmd_recover = f"{decryptor_name}.exe {cmd_param}"
+            cmd_recover = f"{tool_name}.exe {cmd_param}"
         else:
-            cmd_recover = f"./{decryptor_name} {cmd_param}"
+            cmd_recover = f"./{tool_name} {cmd_param}"
 
         print(f"   Executing {cmd_recover}")
         # start a decrypt process
@@ -739,12 +755,11 @@ class HFMFNested(ReaderRequiredUnit):
         block_known = args.blk
         # default to A
         type_known = MfcKeyType.B if args.b else MfcKeyType.A
-
         key_known: str = args.key
         if not re.match(r"^[a-fA-F0-9]{12}$", key_known):
             print("key must include 12 HEX symbols")
             return
-        key_known: bytearray = bytearray.fromhex(key_known)
+        key_known_bytes = bytes.fromhex(key_known)
         block_target = args.tblk
         # default to A
         type_target = MfcKeyType.B if args.b else MfcKeyType.A
@@ -752,7 +767,7 @@ class HFMFNested(ReaderRequiredUnit):
             print(f"{CR}Target key already known{C0}")
             return
         print(f" - {C0}Nested recover one key running...{C0}")
-        key = self.recover_a_key(block_known, type_known, key_known, block_target, type_target)
+        key = self.recover_a_key(block_known, type_known, key_known_bytes, block_target, type_target)
         if key is None:
             print(f"{CY}No key found, you can retry.{C0}")
         else:
@@ -773,7 +788,8 @@ class HFMFDarkside(ReaderRequiredUnit):
 
     def recover_key(self, block_target, type_target):
         """
-            Execute darkside acquisition and decryption
+            Execute darkside acquisition and decryption.
+
         :param block_target:
         :param type_target:
         :return:
@@ -860,8 +876,8 @@ class HFMFWRBL(MF1AuthArgsUnit):
         param = self.get_param(args)
         if not re.match(r"^[a-fA-F0-9]{32}$", args.data):
             raise ArgsParserError("Data must include 32 HEX symbols")
-        param.data = bytearray.fromhex(args.data)
-        resp = self.cmd.mf1_write_one_block(param.block, param.type, param.key, param.data)
+        data = bytearray.fromhex(args.data)
+        resp = self.cmd.mf1_write_one_block(param.block, param.type, param.key, data)
         if resp:
             print(f" - {CG}Write done.{C0}")
         else:
@@ -881,6 +897,7 @@ class HFMFELog(DeviceRequiredUnit):
     def decrypt_by_list(self, rs: list):
         """
             Decrypt key from reconnaissance log list
+
         :param rs:
         :return:
         """
@@ -1124,11 +1141,11 @@ class HFMFEConfig(SlotIndexArgsAndGoUnit, HF14AAntiCollArgsUnit, DeviceRequiredU
         fwslot = SlotNumber.to_fw(self.slot_num)
         hf_tag_type = TagSpecificType(slotinfo[fwslot]['hf'])
         if hf_tag_type not in [
-                    TagSpecificType.MIFARE_Mini,
-                    TagSpecificType.MIFARE_1024,
-                    TagSpecificType.MIFARE_2048,
-                    TagSpecificType.MIFARE_4096,
-                ]:
+            TagSpecificType.MIFARE_Mini,
+            TagSpecificType.MIFARE_1024,
+            TagSpecificType.MIFARE_2048,
+            TagSpecificType.MIFARE_4096,
+        ]:
             print(f"{CR}Slot {self.slot_num} not configured as MIFARE Classic{C0}")
             return
         mfc_config = self.cmd.mf1_get_emulator_config()
@@ -1310,7 +1327,7 @@ class HFMFUDUMP(MFUAuthArgsUnit):
         }
         for i in range(param.start_page, param.stop_page):
             resp = self.cmd.hf14a_raw(options=options, resp_timeout_ms=200, data=struct.pack('!BB', 0x30, i))
-            # TODO: can be optimized as we get 4 pages at once but beware of wrapping 
+            # TODO: can be optimized as we get 4 pages at once but beware of wrapping
             # in case of end of memory or LOCK on ULC and no key provided
             data = resp[:4]
             print(f" - Page {i:2}: {data.hex()}")
@@ -1320,7 +1337,7 @@ class HFMFUDUMP(MFUAuthArgsUnit):
                 else:
                     fd.write(data)
         if fd is not None:
-            print(f" - {colorama.Fore.GREEN}Dump written in {param.output_file}.{colorama.Style.RESET_ALL}")
+            print(f" - {CG}Dump written in {param.output_file}.{C0}")
             fd.close()
 
 
@@ -1347,10 +1364,10 @@ class HFMFUEConfig(SlotIndexArgsAndGoUnit, HF14AAntiCollArgsUnit, DeviceRequired
         fwslot = SlotNumber.to_fw(self.slot_num)
         hf_tag_type = TagSpecificType(slotinfo[fwslot]['hf'])
         if hf_tag_type not in [
-                    TagSpecificType.NTAG_213,
-                    TagSpecificType.NTAG_215,
-                    TagSpecificType.NTAG_216,
-                ]:
+            TagSpecificType.NTAG_213,
+            TagSpecificType.NTAG_215,
+            TagSpecificType.NTAG_216,
+        ]:
             print(f"{CR}Slot {self.slot_num} not configured as MIFARE Ultralight / NTAG{C0}")
             return
         change_requested, change_done, uid, atqa, sak, ats = self.update_hf14a_anticoll(args, uid, atqa, sak, ats)
@@ -1408,7 +1425,7 @@ class HWSlotList(DeviceRequiredUnit):
 
     def get_slot_name(self, slot, sense):
         try:
-            name = self.cmd.get_slot_tag_nick(slot, sense).decode(encoding="utf8")
+            name = self.cmd.get_slot_tag_nick(slot, sense)
             return {'baselen': len(name), 'metalen': len(CC+C0), 'name': f'{CC}{name}{C0}'}
         except UnexpectedResponseError:
             return {'baselen': 0, 'metalen': 0, 'name': ''}
@@ -1436,7 +1453,7 @@ class HWSlotList(DeviceRequiredUnit):
             print(f' - {f"Slot {slot}:":{4+maxnamelength+1}}'
                   f'{f"({CG}active{C0})" if slot == selected else ""}')
 
-            ### HF ###
+            # HF
             field_length = maxnamelength+slotnames[fwslot]["hf"]["metalen"]+1
             print(f'   HF: '
                   f'{slotnames[fwslot]["hf"]["name"]:{field_length}}', end='')
@@ -1462,11 +1479,11 @@ class HWSlotList(DeviceRequiredUnit):
                 if len(ats) > 0:
                     print(f'      {"ATS:":40}{CY}{ats.hex().upper()}{C0}')
                 if hf_tag_type in [
-                        TagSpecificType.MIFARE_Mini,
-                        TagSpecificType.MIFARE_1024,
-                        TagSpecificType.MIFARE_2048,
-                        TagSpecificType.MIFARE_4096,
-                    ]:
+                    TagSpecificType.MIFARE_Mini,
+                    TagSpecificType.MIFARE_1024,
+                    TagSpecificType.MIFARE_2048,
+                    TagSpecificType.MIFARE_4096,
+                ]:
                     config = self.cmd.mf1_get_emulator_config()
                     # print('    - Mifare Classic emulator settings:')
                     print(
@@ -1480,14 +1497,14 @@ class HWSlotList(DeviceRequiredUnit):
                         f'{f"{CG}enabled{C0}" if config["block_anti_coll_mode"] else f"{CR}disabled{C0}"}')
                     try:
                         print(f'      {"Write mode:":40}{CY}'
-                            f'{MifareClassicWriteMode(config["write_mode"])}{C0}')
+                              f'{MifareClassicWriteMode(config["write_mode"])}{C0}')
                     except ValueError:
                         print(f'      {"Write mode:":40}{CR}invalid value!{C0}')
                     print(
                         f'      {"Log (mfkey32) mode:":40}'
                         f'{f"{CG}enabled{C0}" if config["detection"] else f"{CR}disabled{C0}"}')
 
-            ### LF ###
+            # LF
             field_length = maxnamelength+slotnames[fwslot]["lf"]["metalen"]+1
             print(f'   LF: '
                   f'{slotnames[fwslot]["lf"]["name"]:{field_length}}', end='')
@@ -1663,10 +1680,7 @@ class HWSlotNick(SlotIndexArgsUnit, SenseTypeArgsUnit):
             sense_type = TagSenseType.HF
         if args.name is not None:
             name: str = args.name
-            encoded_name = name.encode(encoding="utf8")
-            if len(encoded_name) > 32:
-                raise ValueError("Your tag nick name too long.")
-            self.cmd.set_slot_tag_nick(slot_num, sense_type, encoded_name)
+            self.cmd.set_slot_tag_nick(slot_num, sense_type, name)
             print(f' - Set tag nick name for slot {slot_num} {sense_type.name}: {name}')
         elif args.delete:
             self.cmd.delete_slot_tag_nick(slot_num, sense_type)
@@ -1674,7 +1688,7 @@ class HWSlotNick(SlotIndexArgsUnit, SenseTypeArgsUnit):
         else:
             res = self.cmd.get_slot_tag_nick(slot_num, sense_type)
             print(f' - Get tag nick name for slot {slot_num} {sense_type.name}'
-                  f': {res.decode(encoding="utf8")}')
+                  f': {res}')
 
 
 @hw_slot.command('store')
@@ -1916,9 +1930,9 @@ class HWSettingsBLEKey(DeviceRequiredUnit):
         return parser
 
     def on_exec(self, args: argparse.Namespace):
-        resp = self.cmd.get_ble_pairing_key()
+        key = self.cmd.get_ble_pairing_key()
         print(" - The current key of the device(ascii): "
-              f"{CG}{resp.decode(encoding='ascii')}{C0}")
+              f"{CG}{key}{C0}")
 
         if args.key is not None:
             if len(args.key) != 6:
