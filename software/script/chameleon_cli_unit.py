@@ -10,6 +10,7 @@ from datetime import datetime
 import serial.tools.list_ports
 import threading
 import struct
+from multiprocessing import Pool, cpu_count
 from typing import Union
 from pathlib import Path
 from platform import uname
@@ -21,7 +22,7 @@ from chameleon_utils import CLITree
 from chameleon_utils import CR, CG, CB, CC, CY, C0
 from chameleon_enum import Command, Status, SlotNumber, TagSenseType, TagSpecificType
 from chameleon_enum import MifareClassicWriteMode, MifareClassicPrngType, MifareClassicDarksideStatus, MfcKeyType
-from chameleon_enum import AnimationMode, ButtonType, ButtonPressFunction
+from chameleon_enum import AnimationMode, ButtonPressFunction, ButtonType, MfcValueBlockOperator
 
 # NXP IDs based on https://www.nxp.com/docs/en/application-note/AN10833.pdf
 type_id_SAK_dict = {0x00: "MIFARE Ultralight Classic/C/EV1/Nano | NTAG 2xx",
@@ -884,6 +885,216 @@ class HFMFWRBL(MF1AuthArgsUnit):
             print(f" - {CR}Write fail.{C0}")
 
 
+@hf_mf.command('value')
+class HFMFVALUE(ReaderRequiredUnit):
+    def args_parser(self) -> ArgumentParserNoExit:
+        parser = ArgumentParserNoExit()
+        parser.description = 'MIFARE Classic value block commands'
+
+        operator_group = parser.add_mutually_exclusive_group()
+        operator_group.add_argument('--get', action='store_true', help="get value from src block")
+        operator_group.add_argument('--set', type=int, required=False, metavar="<dec>",
+                            help="set value X (-2147483647 ~ 2147483647) to src block")
+        operator_group.add_argument('--inc', type=int, required=False, metavar="<dec>",
+                            help="increment value by X (0 ~ 2147483647) from src to dst")
+        operator_group.add_argument('--dec', type=int, required=False, metavar="<dec>",
+                            help="decrement value by X (0 ~ 2147483647) from src to dst")
+        operator_group.add_argument('--res', '--cp', action='store_true', help="copy value from src to dst (Restore and Transfer)")
+
+        parser.add_argument('--blk', '--src-block', type=int, required=True, metavar="<dec>",
+                            help="block number of src")
+        srctype_group = parser.add_mutually_exclusive_group()
+        srctype_group.add_argument('-a', '-A', action='store_true', help="key of src is A key (default)")
+        srctype_group.add_argument('-b', '-B', action='store_true', help="key of src is B key")
+        parser.add_argument('-k', '--src-key', type=str, required=True, metavar="<hex>", help="key of src")
+
+        parser.add_argument('--tblk', '--dst-block', type=int, metavar="<dec>",
+                            help="block number of dst (default to src)")
+        dsttype_group = parser.add_mutually_exclusive_group()
+        dsttype_group.add_argument('--ta', '--tA', action='store_true', help="key of dst is A key (default to src)")
+        dsttype_group.add_argument('--tb', '--tB', action='store_true', help="key of dst is B key (default to src)")
+        parser.add_argument('--tkey', '--dst-key', type=str, metavar="<hex>", help="key of dst (default to src)")
+
+        return parser
+
+    def on_exec(self, args: argparse.Namespace):
+        # print(args)
+        # src
+        src_blk = args.blk
+        src_type = MfcKeyType.B if args.b is not False else MfcKeyType.A
+        src_key = args.src_key
+        if not re.match(r"^[a-fA-F0-9]{12}$", src_key):
+            print("src_key must include 12 HEX symbols")
+            return
+        src_key = bytearray.fromhex(src_key)
+        # print(src_blk, src_type, src_key)
+
+        if args.get is not False:
+            self.get_value(src_blk, src_type, src_key)
+            return
+        elif args.set is not None:
+            self.set_value(src_blk, src_type, src_key, args.set)
+            return
+
+        # dst
+        dst_blk = args.tblk if args.tblk is not None else src_blk
+        dst_type = MfcKeyType.A if args.ta is not False else (MfcKeyType.B if args.tb is not False else src_type)
+        dst_key = args.tkey if args.tkey is not None else args.src_key
+        if not re.match(r"^[a-fA-F0-9]{12}$", dst_key):
+            print("dst_key must include 12 HEX symbols")
+            return
+        dst_key = bytearray.fromhex(dst_key)
+        # print(dst_blk, dst_type, dst_key)
+        
+        if args.inc is not None:
+            self.inc_value(src_blk, src_type, src_key, args.inc, dst_blk, dst_type, dst_key)
+            return
+        elif args.dec is not None:
+            self.dec_value(src_blk, src_type, src_key, args.dec, dst_blk, dst_type, dst_key)
+            return
+        elif args.res is not False:
+            self.res_value(src_blk, src_type, src_key, dst_blk, dst_type, dst_key)
+            return
+        else:
+            raise ArgsParserError("Please specify a value command")
+
+    def get_value(self, block, type, key):
+        resp = self.cmd.mf1_read_one_block(block, type, key)
+        val1, val2, val3, adr1, adr2, adr3, adr4 = struct.unpack("<iiiBBBB", resp)
+        # print(f"{val1}, {val2}, {val3}, {adr1}, {adr2}, {adr3}, {adr4}")
+        if (val1 != val3) or (val1 + val2 != -1):
+            print(f" - {CR}Invalid value of value block: {resp.hex()}{C0}")
+            return
+        if (adr1 != adr3) or (adr2 != adr4) or (adr1 + adr2 != 0xFF):
+            print(f" - {CR}Invalid address of value block: {resp.hex()}{C0}")
+            return
+        print(f" - block[{block}] = {CG}{{ value: {val1}, adr: {adr1} }}{C0}")
+
+    def set_value(self, block, type, key, value):
+        if value < -2147483647 or value > 2147483647:
+            raise ArgsParserError(f"Set value must be between -2147483647 and 2147483647. Got {value}")
+        adr_inverted = 0xFF - block
+        data = struct.pack("<iiiBBBB", value, -value - 1, value, block, adr_inverted, block, adr_inverted)
+        resp = self.cmd.mf1_write_one_block(block, type, key, data)
+        if resp:
+            print(f" - {CG}Set done.{C0}")
+            self.get_value(block, type, key)
+        else:
+            print(f" - {CR}Set fail.{C0}")
+
+    def inc_value(self, src_blk, src_type, src_key, value, dst_blk, dst_type, dst_key):
+        if value < 0 or value > 2147483647:
+            raise ArgsParserError(f"Increment value must be between 0 and 2147483647. Got {value}")
+        resp = self.cmd.mf1_manipulate_value_block(
+            src_blk, src_type, src_key, 
+            MfcValueBlockOperator.INCREMENT, value,
+            dst_blk, dst_type, dst_key
+        )
+        if resp:
+            print(f" - {CG}Increment done.{C0}")
+            self.get_value(dst_blk, dst_type, dst_key)
+        else:
+            print(f" - {CR}Increment fail.{C0}")
+    
+    def dec_value(self, src_blk, src_type, src_key, value, dst_blk, dst_type, dst_key):
+        if value < 0 or value > 2147483647:
+            raise ArgsParserError(f"Decrement value must be between 0 and 2147483647. Got {value}")
+        resp = self.cmd.mf1_manipulate_value_block(
+            src_blk, src_type, src_key, 
+            MfcValueBlockOperator.DECREMENT, value,
+            dst_blk, dst_type, dst_key
+        )
+        if resp:
+            print(f" - {CG}Decrement done.{C0}")
+            self.get_value(dst_blk, dst_type, dst_key)
+        else:
+            print(f" - {CR}Decrement fail.{C0}")
+
+    def res_value(self, src_blk, src_type, src_key, dst_blk, dst_type, dst_key):
+        resp = self.cmd.mf1_manipulate_value_block(
+            src_blk, src_type, src_key, 
+            MfcValueBlockOperator.RESTORE, 0,
+            dst_blk, dst_type, dst_key
+        )
+        if resp:
+            print(f" - {CG}Restore done.{C0}")
+            self.get_value(dst_blk, dst_type, dst_key)
+        else:
+            print(f" - {CR}Restore fail.{C0}")
+
+
+_KEY = re.compile("[a-fA-F0-9]{12}", flags=re.MULTILINE)
+
+
+def _run_mfkey32v2(items):
+    output_str = subprocess.run(
+        [
+            default_cwd / ("mfkey32v2.exe" if sys.platform == "win32" else "mfkey32v2"),
+            items[0]["uid"],
+            items[0]["nt"],
+            items[0]["nr"],
+            items[0]["ar"],
+            items[1]["nt"],
+            items[1]["nr"],
+            items[1]["ar"],
+        ],
+        capture_output=True,
+        check=True,
+        encoding="ascii",
+    ).stdout
+    sea_obj = _KEY.search(output_str)
+    if sea_obj is not None:
+        return sea_obj[0], items
+    return None
+
+
+class ItemGenerator:
+    def __init__(self, rs, i=0, j=1):
+        self.rs = rs
+        self.i = 0
+        self.j = 1
+        self.found = set()
+        self.keys = set()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            item_i = self.rs[self.i]
+        except IndexError:
+            raise StopIteration
+        if self.key_from_item(item_i) in self.found:
+            self.i += 1
+            self.j = self.i + 1
+            return next(self)
+        try:
+            item_j = self.rs[self.j]
+        except IndexError:
+            self.i += 1
+            self.j = self.i + 1
+            return next(self)
+        self.j += 1
+        if self.key_from_item(item_j) in self.found:
+            return next(self)
+        return item_i, item_j
+
+    @staticmethod
+    def key_from_item(item):
+        return "{uid}-{nt}-{nr}-{ar}".format(**item)
+
+    def key_found(self, key, items):
+        self.keys.add(key)
+        for item in items:
+            try:
+                if item == self.rs[self.i]:
+                    self.i += 1
+                    self.j = self.i + 1
+            except IndexError:
+                break
+        self.found.update(self.key_from_item(item) for item in items)
+
+
 @hf_mf.command('elog')
 class HFMFELog(DeviceRequiredUnit):
     detection_log_size = 18
@@ -905,35 +1116,16 @@ class HFMFELog(DeviceRequiredUnit):
         msg2 = f"/{(len(rs)*(len(rs)-1))//2} combinations. "
         msg3 = " key(s) found"
         n = 1
-        keys = set()
-        for i in range(len(rs)):
-            item0 = rs[i]
-            for j in range(i + 1, len(rs)):
-                item1 = rs[j]
+        gen = ItemGenerator(rs)
+        with Pool(cpu_count()) as pool:
+            for result in pool.imap(_run_mfkey32v2, gen):
                 # TODO: if some keys already recovered, test them on item before running mfkey32 on item
-                # TODO: if some keys already recovered, remove corresponding items
-                cmd_base = f"{item0['uid']} {item0['nt']} {item0['nr']} {item0['ar']}"
-                cmd_base += f" {item1['nt']} {item1['nr']} {item1['ar']}"
-                if sys.platform == "win32":
-                    cmd_recover = f"mfkey32v2.exe {cmd_base}"
-                else:
-                    cmd_recover = f"./mfkey32v2 {cmd_base}"
-                # print(cmd_recover)
-                # Found Key: [e899c526c5cd]
-                # subprocess.run(cmd_final, cwd=os.path.abspath("../bin/"), shell=True)
-                process = self.sub_process(cmd_recover)
-                # wait end
-                process.wait_process()
-                # get output
-                output_str = process.get_output_sync()
-                # print(output_str)
-                sea_obj = re.search(r"([a-fA-F0-9]{12})", output_str, flags=re.MULTILINE)
-                if sea_obj is not None:
-                    keys.add(sea_obj[1])
-                print(f"{msg1}{n}{msg2}{len(keys)}{msg3}\r", end="")
+                if result is not None:
+                    gen.key_found(*result)
+                print(f"{msg1}{n}{msg2}{len(gen.keys)}{msg3}\r", end="")
                 n += 1
         print()
-        return keys
+        return gen.keys
 
     def on_exec(self, args: argparse.Namespace):
         if not args.decrypt:
